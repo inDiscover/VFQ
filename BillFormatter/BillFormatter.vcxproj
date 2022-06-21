@@ -146,8 +146,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BillFormatter.cpp" />
+    <ClCompile Include="HtmlConverter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="HtmlConverter.h" />
     <ClInclude Include="wkhtmltox\include\wkhtmltox\pdf.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
