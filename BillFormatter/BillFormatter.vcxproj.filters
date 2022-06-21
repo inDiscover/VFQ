@@ -21,10 +21,16 @@
     <ClCompile Include="BillFormatter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="HtmlConverter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="wkhtmltox\include\wkhtmltox\pdf.h">
       <Filter>wkhtmltox</Filter>
+    </ClInclude>
+    <ClInclude Include="HtmlConverter.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
