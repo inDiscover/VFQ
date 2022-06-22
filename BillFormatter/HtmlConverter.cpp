@@ -1,4 +1,5 @@
 #include "HtmlConverter.h"
+#include <utility>
 
 namespace
 {
@@ -25,15 +26,96 @@ namespace
 	}
 }
 
-HtmlConverter::HtmlConverter(const std::string& in)
+html_converter::html_converter()
 {
+}
+
+html_converter::html_converter(const html_converter& other)
+: input_document(other.input_document)
+, global_settings(other.global_settings)
+, converter(other.converter)
+, settings(other.settings)
+{
+	const_cast<html_converter&>(other).input_document = "";
+	const_cast<html_converter&>(other).global_settings = nullptr;
+	const_cast<html_converter&>(other).converter = nullptr;
+	const_cast<html_converter&>(other).settings = nullptr;
+}
+
+html_converter::html_converter(html_converter&& other) noexcept
+: input_document(std::exchange(other.input_document, ""))
+, global_settings(std::exchange(other.global_settings, nullptr))
+, converter(std::exchange(other.converter, nullptr))
+, settings(std::exchange(other.settings, nullptr))
+{
+}
+
+html_converter::html_converter(const std::string& in)
+{
+	input_document = in;
 	auto out = in + ".pdf";
-	globalSettings = wkhtmltopdf_create_global_settings();
-	wkhtmltopdf_set_global_setting(globalSettings, "out", out.data());
-	converter = wkhtmltopdf_create_converter(globalSettings);
+	global_settings = wkhtmltopdf_create_global_settings();
+	wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
+	converter = wkhtmltopdf_create_converter(global_settings);
 	settings = wkhtmltopdf_create_object_settings();
 	wkhtmltopdf_set_object_setting(settings, "page", in.data());
 	wkhtmltopdf_add_object(converter, settings, nullptr);
+
+	/* call the progress_changed function when progress changes */
+	wkhtmltopdf_set_progress_changed_callback(converter, progress_changed);
+
+	/* call the phase _changed function when the phase changes */
+	wkhtmltopdf_set_phase_changed_callback(converter, phase_changed);
+
+	/* call the error function when an error occurs */
+	wkhtmltopdf_set_error_callback(converter, error);
+
+	/* call the warning function when a warning is issued */
+	wkhtmltopdf_set_warning_callback(converter, warning);
+}
+
+html_converter::~html_converter()
+{
+	if (converter)
+	{
+		wkhtmltopdf_destroy_converter(converter);
+		converter = nullptr;
+	}
+	//if (settings)
+	//{
+	//	wkhtmltopdf_destroy_object_settings(settings);
+	//	settings = nullptr;
+	//}
+	if (global_settings)
+	{
+		wkhtmltopdf_destroy_global_settings(global_settings);
+		global_settings = nullptr;
+	}
+}
+
+html_converter& html_converter::operator=(const html_converter& other)
+{
+	return *this = html_converter(other);
+}
+
+html_converter& html_converter::operator=(html_converter&& other) noexcept
+{
+	std::swap(input_document, other.input_document);
+	std::swap(converter, other.converter);
+	std::swap(global_settings, other.global_settings);
+	std::swap(settings, other.settings);
+	return *this;
+}
+
+bool html_converter::convert()
+{
+	//auto out = input_document + ".pdf";
+	//global_settings = wkhtmltopdf_create_global_settings();
+	//wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
+	//converter = wkhtmltopdf_create_converter(global_settings);
+	//settings = wkhtmltopdf_create_object_settings();
+	//wkhtmltopdf_set_object_setting(settings, "page", input_document.data());
+	//wkhtmltopdf_add_object(converter, settings, nullptr);
 
 	///* Call the progress_changed function when progress changes */
 	//wkhtmltopdf_set_progress_changed_callback(converter, progress_changed);
@@ -46,16 +128,28 @@ HtmlConverter::HtmlConverter(const std::string& in)
 
 	///* Call the warning function when a warning is issued */
 	//wkhtmltopdf_set_warning_callback(converter, warning);
-}
-
-HtmlConverter::~HtmlConverter()
-{
-	wkhtmltopdf_destroy_converter(converter);
-	wkhtmltopdf_destroy_object_settings(settings);
-    wkhtmltopdf_destroy_global_settings(globalSettings);
-}
-
-bool HtmlConverter::Convert()
-{
 	return wkhtmltopdf_convert(converter);
+}
+
+std::string html_converter::get_doc() const
+{
+	return input_document;
+} 
+
+int html_converter::get_html_error_code() const
+{
+	if (converter)
+	{
+		return wkhtmltopdf_http_error_code(converter);
+	}
+	return 0;
+} 
+
+size_t html_converter::get_output_buffer(const unsigned char** ppbuffer) const
+{
+	if (converter)
+	{
+		return wkhtmltopdf_get_output(converter, ppbuffer);
+	}
+	return 0;
 }
