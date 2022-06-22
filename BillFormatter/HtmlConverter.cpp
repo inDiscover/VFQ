@@ -1,5 +1,10 @@
 #include "HtmlConverter.h"
+#include <iostream>
 #include <utility>
+#include <thread>
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 namespace
 {
@@ -53,25 +58,6 @@ html_converter::html_converter(html_converter&& other) noexcept
 html_converter::html_converter(const std::string& in)
 {
 	input_document = in;
-	auto out = in + ".pdf";
-	global_settings = wkhtmltopdf_create_global_settings();
-	wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
-	converter = wkhtmltopdf_create_converter(global_settings);
-	settings = wkhtmltopdf_create_object_settings();
-	wkhtmltopdf_set_object_setting(settings, "page", in.data());
-	wkhtmltopdf_add_object(converter, settings, nullptr);
-
-	/* call the progress_changed function when progress changes */
-	wkhtmltopdf_set_progress_changed_callback(converter, progress_changed);
-
-	/* call the phase _changed function when the phase changes */
-	wkhtmltopdf_set_phase_changed_callback(converter, phase_changed);
-
-	/* call the error function when an error occurs */
-	wkhtmltopdf_set_error_callback(converter, error);
-
-	/* call the warning function when a warning is issued */
-	wkhtmltopdf_set_warning_callback(converter, warning);
 }
 
 html_converter::~html_converter()
@@ -109,25 +95,33 @@ html_converter& html_converter::operator=(html_converter&& other) noexcept
 
 bool html_converter::convert()
 {
-	//auto out = input_document + ".pdf";
-	//global_settings = wkhtmltopdf_create_global_settings();
-	//wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
-	//converter = wkhtmltopdf_create_converter(global_settings);
-	//settings = wkhtmltopdf_create_object_settings();
-	//wkhtmltopdf_set_object_setting(settings, "page", input_document.data());
-	//wkhtmltopdf_add_object(converter, settings, nullptr);
+	auto out = input_document + ".pdf";
+	global_settings = wkhtmltopdf_create_global_settings();
+	wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
+	converter = wkhtmltopdf_create_converter(global_settings);
+	settings = wkhtmltopdf_create_object_settings();
+	wkhtmltopdf_set_object_setting(settings, "page", input_document.data());
+	wkhtmltopdf_add_object(converter, settings, nullptr);
 
-	///* Call the progress_changed function when progress changes */
-	//wkhtmltopdf_set_progress_changed_callback(converter, progress_changed);
+	/* call the progress_changed function when progress changes */
+	wkhtmltopdf_set_progress_changed_callback(converter, progress_changed);
 
-	///* Call the phase _changed function when the phase changes */
-	//wkhtmltopdf_set_phase_changed_callback(converter, phase_changed);
+	/* call the phase _changed function when the phase changes */
+	wkhtmltopdf_set_phase_changed_callback(converter, phase_changed);
 
-	///* Call the error function when an error occurs */
-	//wkhtmltopdf_set_error_callback(converter, error);
+	/* call the error function when an error occurs */
+	wkhtmltopdf_set_error_callback(converter, error);
 
-	///* Call the warning function when a warning is issued */
-	//wkhtmltopdf_set_warning_callback(converter, warning);
+	/* call the warning function when a warning is issued */
+	wkhtmltopdf_set_warning_callback(converter, warning);
+
+	std::cout << "Converting..." << std::endl;
+
+	// Only for debugging
+	std::this_thread::sleep_for(500ms);
+	return true;
+	// Only for debugging
+
 	return wkhtmltopdf_convert(converter);
 }
 
