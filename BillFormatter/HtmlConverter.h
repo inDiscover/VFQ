@@ -3,16 +3,24 @@
 
 #include "wkhtmltox/pdf.h"
 
-class HtmlConverter
+class html_converter
 {
 public:
-	HtmlConverter(const std::string& in);
-	virtual ~HtmlConverter();
-	bool Convert();
+	html_converter();
+	html_converter(const html_converter& other);
+	html_converter(html_converter&& other) noexcept;
+	html_converter(const std::string& in);
+	virtual ~html_converter();
+	html_converter& operator=(const html_converter& other);
+	html_converter& operator=(html_converter&& other) noexcept;
+	bool convert();
+	std::string get_doc() const;
+	int get_html_error_code() const;
+	size_t get_output_buffer(const unsigned char** ppbuffer) const;
 
 private:
-	std::string inputDocument;
-	wkhtmltopdf_global_settings* globalSettings = nullptr;
+	std::string input_document;
+	wkhtmltopdf_global_settings* global_settings = nullptr;
 	wkhtmltopdf_converter* converter = nullptr;
 	wkhtmltopdf_object_settings* settings = nullptr;
 };
