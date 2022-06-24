@@ -116,13 +116,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>wkhtmltox\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>libzmq\include;cppzmq;wkhtmltox\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>wkhtmltox\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>wkhtmltox.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>libzmq\lib;wkhtmltox\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libzmq-mt-4_3_5.lib;wkhtmltox.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -133,24 +133,26 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>wkhtmltox\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>libzmq\include;cppzmq;wkhtmltox\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>wkhtmltox\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>wkhtmltox.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>libzmq\lib;wkhtmltox\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libzmq-mt-4_3_5.lib;wkhtmltox.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BillFormatter.cpp" />
     <ClCompile Include="HtmlConverter.cpp" />
+    <ClCompile Include="worker.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HtmlConverter.h" />
     <ClInclude Include="wkhtmltox\include\wkhtmltox\pdf.h" />
+    <ClInclude Include="worker.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
