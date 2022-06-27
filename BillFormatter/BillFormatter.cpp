@@ -47,8 +47,8 @@ namespace
 {
     /* Print out loading progress information */
     void progress_changed(wkhtmltopdf_converter* c, int p) {
-        printf("%3d%%\r", p);
-        fflush(stdout);
+        printf("%3d%%\r", p);// 100% , last % symbol is the escape character
+        fflush(stdout);// might be to fill the buffer and once the buffer got filled then output send to the output stream
     }
 
     /* Print loading phase information */

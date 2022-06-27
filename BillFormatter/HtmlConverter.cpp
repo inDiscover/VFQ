@@ -97,10 +97,16 @@ bool html_converter::convert()
 {
 	auto out = input_document + ".pdf";
 	global_settings = wkhtmltopdf_create_global_settings();
+	// out.data() => data is a method in a String class which returns character pointer 
+	//so that there is no data typemismatch between String (out var defined in C++) and Char* defined in C
+
+	// global settings (Structure) => settings related to the output file
 	wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
 	converter = wkhtmltopdf_create_converter(global_settings);
+	// object settings (Structure) => settings related to input file (In our case it is related to HTML files)
 	settings = wkhtmltopdf_create_object_settings();
 	wkhtmltopdf_set_object_setting(settings, "page", input_document.data());
+	//At this time , converter knows what to convert
 	wkhtmltopdf_add_object(converter, settings, nullptr);
 
 	/* call the progress_changed function when progress changes */
