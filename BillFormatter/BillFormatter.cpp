@@ -147,34 +147,40 @@ static unsigned int __stdcall thread_main()
 {
     for (;;)
     {
-            std::unique_lock<std::mutex> lock(g_queue_mtx);
-            g_cv_pool.wait(lock, [] {
-                return !converters.empty() || g_terminate_pool;
-            });
+        // Check if there is anying to do and wait
+		std::unique_lock<std::mutex> lock(g_queue_mtx);
+		g_cv_pool.wait(lock, [] {
+			return !converters.empty() || g_terminate_pool;
+		});
 
-            if (g_terminate_pool)
-            {
-                std::cout << "Terminate pool thread" << std::endl;
-                std::unique_lock<std::mutex> lock(g_shutdown_mtx);
-                ++g_shutdown_count;
-                g_cv_shutdown.notify_one();
-                return 0;
-            }
-            auto job = converters.front();
-            converters.pop_front();
-            lock.unlock();
+        // Terminate if this is requested
+		if (g_terminate_pool)
+		{
+			std::cout << "Terminate pool thread" << std::endl;
+			std::unique_lock<std::mutex> lock(g_shutdown_mtx);
+			++g_shutdown_count;
+			g_cv_shutdown.notify_one();
+			return 0;
+		}
 
-            std::cout << "Processing job for " << job.get_doc() << std::endl;
-            if (!job.convert())
-            {
-                std::cerr << "Failed to convert " << job.get_doc() << ". Error=" << job.get_html_error_code() << std::endl;
-            }
-            else
-            {
-                const unsigned char* doc_buffer = nullptr;
-                std::cout << "Converted document size " << job.get_output_buffer(&doc_buffer) << std::endl;
-            }
-            signal_job_done();
+        // Execute the job
+		auto job = converters.front();
+		converters.pop_front();
+		lock.unlock();
+
+		std::cout << "Processing job for " << job.get_doc() << std::endl;
+		if (!job.convert())
+		{
+			std::cerr << "Failed to convert " << job.get_doc() << ". Error=" << job.get_html_error_code() << std::endl;
+		}
+		else
+		{
+			const unsigned char* doc_buffer = nullptr;
+			std::cout << "Converted document size " << job.get_output_buffer(&doc_buffer) << std::endl;
+		}
+
+        // Notify the requester
+		signal_job_done();
     }
 
     return 1;
