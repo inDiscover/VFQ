@@ -4,6 +4,7 @@
 #include <iostream>
 #include <iomanip>
 #include <array>
+#include <iterator>
 #include <ostream>
 #include <sstream>
 #include <vector>
@@ -65,12 +66,27 @@ void print_usage()
     cout << endl;
 }
 
-bool wait_for_shutdown()
+bool wait_for_shutdown(zmq::socket_t& broker)
 {
     //std::unique_lock<std::mutex> lock(g_shutdown_mtx);
     //return g_cv_shutdown.wait_for(lock, TIMEOUT_SHUTDOWN_WORKERS, [] { return g_shutdown_count == max_threads; });
+
     std::this_thread::sleep_for(5s);
     return true;
+
+    std::string identity;
+    std::string delimiter;
+    std::string workload;
+    std::vector<zmq::message_t> recv_msgs;
+    const auto ret = zmq::recv_multipart(broker, std::back_inserter(recv_msgs));
+
+    //std::cout << "Broker got " << *ret << " messages" << std::endl;
+    identity = recv_msgs.begin()->to_string();
+    //delimiter = recv_msgs[1].to_string();
+    workload = recv_msgs.rbegin()->to_string();
+    //std::cout << "Identity: " << identity << " Delimiter: " << delimiter << " Workload: " << workload << std::endl;
+
+    return MSG_WORKER_READY == workload;
 }
 
 void signal_shutdown_pool(zmq::socket_t& broker)
@@ -79,17 +95,21 @@ void signal_shutdown_pool(zmq::socket_t& broker)
     for (auto i=0; i<max_threads; ++i)
     {
         //  Next message gives us least recently used worker
-        zmq::message_t identity_msg;
-        auto rc = broker.recv(identity_msg, zmq::recv_flags::none);
-        if (!rc)
-        {
-            std::cerr << "Failed to receive workers identity" << std::endl;
-            break;
-        }
+        std::string identity;
+        std::string delimiter;
+        std::string workload;
+        std::vector<zmq::message_t> recv_msgs;
+        const auto ret = zmq::recv_multipart(broker, std::back_inserter(recv_msgs));
+
+        //std::cout << "Broker got " << *ret << " messages" << std::endl;
+        identity = recv_msgs.begin()->to_string();
+        //delimiter = recv_msgs[1].to_string();
+        workload = recv_msgs.rbegin()->to_string();
+        //std::cout << "Identity: " << identity << " Delimiter: " << delimiter << " Workload: " << workload << std::endl;
 
         std::array<zmq::const_buffer, 3> req_msgs =
         {
-            zmq::buffer(identity_msg.to_string()),
+            zmq::buffer(identity),
             zmq::str_buffer(""),          // envelop delimiter
             zmq::buffer(MSG_WORKER_TERM)  // shutdown request
         };
@@ -97,16 +117,16 @@ void signal_shutdown_pool(zmq::socket_t& broker)
         {
             if (!zmq::send_multipart(broker, req_msgs))
             {
-                std::cerr << "Failed to send WORKER_TERM to worker " << identity_msg.to_string() << std::endl;
+                std::cerr << "Failed to send WORKER_TERM to worker " << identity << std::endl;
             }
             else
             {
-                std::cout << "Sent WORKER_TERM to " << identity_msg.to_string() << std::endl;
+                std::cout << "Sent WORKER_TERM to " << identity << std::endl;
             }
         }
         catch (const zmq::error_t& err)
         {
-            std::cerr << "Failed to send WORKER_TERM to worker " << identity_msg.to_string() << ": " << err.what() << std::endl;
+            std::cerr << "Failed to send WORKER_TERM to worker " << identity << ": " << err.what() << std::endl;
         }
     }
 }
@@ -122,7 +142,7 @@ void shutdown_pool(zmq::socket_t& broker)
 
     //g_cv_pool.notify_all(); // wake up all threads.
 
-    if (!wait_for_shutdown())
+    if (!wait_for_shutdown(broker))
     {
         std::cerr << "Timeout occurred while waiting for thread pool to shutdown. Terminating ..." << std::endl;
         std::cerr.flush();
@@ -146,7 +166,7 @@ bool wait_for_all_jobs()
 {
     //std::unique_lock<std::mutex> lock(g_done_mtx);
     //return g_cv_done.wait_for(lock, TIMEOUT_ALL_JOBS_FINISHED, [] { return g_done_count == g_job_count; });
-    std::this_thread::sleep_for(60s);
+    std::this_thread::sleep_for(6s);
     return true;
 }
 
@@ -158,9 +178,8 @@ void signal_worker_ready(zmq::socket_t& worker, const std::string& worker_id)
     }
     //g_cv_done.notify_all();
 
-    std::array<zmq::const_buffer, 2> req_msgs =
+    std::array<zmq::const_buffer, 1> req_msgs =
     {
-        zmq::str_buffer(""),    // envelop delimiter
         zmq::buffer(MSG_WORKER_READY)
     };
     try
@@ -215,8 +234,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
         std::cout << "Worker " << worker_id << " waiting for job requests..." << std::endl;
 
         std::vector<zmq::message_t> recv_msgs;
-        const auto rc = zmq::recv_multipart(
-            worker, std::back_inserter(recv_msgs));
+        const auto rc = zmq::recv_multipart(worker, std::back_inserter(recv_msgs));
         if (!rc)
         {
             std::cerr << "Worker " << worker_id << " failed to receive multi-part job request" << std::endl;
@@ -224,9 +242,10 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
         }
         std::cout << "Got " << *rc
                   << " messages" << std::endl;
-        zmq::message_t& identity_msg = recv_msgs[0];
-        zmq::message_t& delimiter_msg = recv_msgs[1];
-        zmq::message_t& workload_msg = recv_msgs[2];
+        //zmq::message_t& identity_msg = recv_msgs[0];
+        //zmq::message_t& delimiter_msg = recv_msgs[1];
+        //zmq::message_t& workload_msg = recv_msgs[2];
+        auto workload = recv_msgs.rbegin()->to_string();
 
         //zmq::message_t identity_msg;
         //auto rc = worker.recv(identity_msg, zmq::recv_flags::none); // worker identity
@@ -236,7 +255,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
         //std::cout << "Worker " << worker_id << " received delimiter " << std::quoted(workload_msg.to_string()) << " [" << rc.value() << "]" << std::endl;
         //rc = worker.recv(workload_msg, zmq::recv_flags::none);
         //std::cout << "Worker " << worker_id << " received workload " << std::quoted(workload_msg.to_string()) << " [" << rc.value() << "]" << std::endl;
-        auto workload = workload_msg.to_string();
+        //auto workload = workload_msg.to_string();
 
         std::cout << "Worker " << worker_id << " received request: " << workload << std::endl;
         if (MSG_WORKER_TERM == workload)
@@ -253,7 +272,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
             }
             else
             {
-                std::cerr << "Worker " << worker_id << "failed to process workload: " << workload_msg << std::endl;
+                std::cerr << "Worker " << worker_id << "failed to process workload: " << workload << std::endl;
             }
         }
 
@@ -263,6 +282,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
             std::cout << "Terminate pool thread. " << g_done_count << " jobs done." << std::endl;
             //std::unique_lock<std::mutex> lock(g_shutdown_mtx);
             ++g_shutdown_count;
+            signal_worker_ready(worker, worker_id);
             //g_cv_shutdown.notify_one();
             return 0;
         }
@@ -389,28 +409,20 @@ int main(int argc, char* argv[])
             std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
 
             //  Next message gives us least recently used worker
-            zmq::message_t identity_msg;
-            auto rc = broker.recv(identity_msg, zmq::recv_flags::none);
-            if (!rc)
-            {
-                std::cerr << "Failed to receive worker's identity" << std::endl;
-                break;
-            }
-            std::cout << "Received worker's identity " << std::quoted(identity_msg.to_string()) << std::endl;
+            std::string identity;
+            std::string delimiter;
+            std::string workload;
+            std::vector<zmq::message_t> recv_msgs;
+            const auto ret = zmq::recv_multipart(broker, std::back_inserter(recv_msgs));
 
-            // Receive the workers response
-            zmq::message_t reply_msg;
-            rc = broker.recv(reply_msg, zmq::recv_flags::none); // skip envelop delimiter
-            rc = broker.recv(reply_msg, zmq::recv_flags::none);
-            if (!rc)
-            {
-                std::cerr << "Failed to receive worker's reply" << std::endl;
-                break;
-            }
-            std::cout << "Received worker's reply " << std::quoted(reply_msg.to_string()) << std::endl;
+            //std::cout << "Broker got " << *ret << " messages" << std::endl;
+            identity = recv_msgs.begin()->to_string();
+            //delimiter = recv_msgs[1].to_string();
+            workload = recv_msgs.rbegin()->to_string();
+            //std::cout << "Identity: " << identity << " Delimiter: " << delimiter << " Workload: " << workload << std::endl;
 
-            auto reply = reply_msg.to_string();
-            if (MSG_WORKER_READY == reply)
+
+            if (MSG_WORKER_READY == workload)
             {
                 ++g_done_count;
             }
@@ -420,13 +432,13 @@ int main(int argc, char* argv[])
             sout << MSG_JOB_REQ << ' ' << doc;
             std::array<zmq::const_buffer, 3> req_msgs =
             {
-                zmq::buffer(identity_msg.to_string()),
+                zmq::buffer(identity),
                 zmq::str_buffer(""),     // envelop delimiter
                 zmq::buffer(sout.str())  // workload
             };
             try
             {
-                std::cout << "Sending multi-part JOB_REQ {" << identity_msg.to_string() << ", " << sout.str() << "}" << std::endl;
+                std::cout << "Sending multi-part JOB_REQ {" << identity << ", " << sout.str() << "}" << std::endl;
                 if (!zmq::send_multipart(broker, req_msgs))
                 {
                     std::cerr << "Failed to send JOB_REQ." << std::endl;
