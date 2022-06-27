@@ -28,8 +28,8 @@ void print_usage()
 
 /* Print out loading progress information */
 void progress_changed(wkhtmltopdf_converter* c, int p) {
-    printf("%3d%%\r", p);
-    fflush(stdout);
+    printf("%3d%%\r", p);// 100% , last % symbol is the escape character
+    fflush(stdout); // might be to fill the buffer and once the buffer got filled then output send to the output stream
 }
 
 /* Print loading phase information */
@@ -83,11 +83,15 @@ int main(int argc, char* argv[])
 		cout << doc << endl;
 
 		auto out = doc + ".pdf";
-		wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
+        // out.data() => data is a method in a String class which returns character pointer so that there is no data typemismatch between String (out var defined in C++) and Char* defined in C
+        // global settings (Structure) => settings related to the output file
+		wkhtmltopdf_set_global_setting(global_settings, "out", out.data()); 
 		wkhtmltopdf_converter* converter = wkhtmltopdf_create_converter(global_settings);
+        // object settings (Structure) => settings related to input file (In our case it is related to HTML files)
 		wkhtmltopdf_object_settings* settings = wkhtmltopdf_create_object_settings();
 		wkhtmltopdf_set_object_setting(settings, "page", doc.data());
-		wkhtmltopdf_add_object(converter, settings, nullptr);
+		//At this time , converter knows what to convert
+        wkhtmltopdf_add_object(converter, settings, nullptr);
 
 		/* Call the progress_changed function when progress changes */
 		wkhtmltopdf_set_progress_changed_callback(converter, progress_changed);
