@@ -20,6 +20,8 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <optional>
+#include <filesystem>
 #include <cstdlib>
 
 #if _OPENMP
@@ -36,22 +38,16 @@
 using namespace std;
 using namespace std::chrono_literals;
 
+using out_file_name_t = std::optional<std::string>;
+
 bool g_is_worker = false;
 std::vector<worker> g_workers;
 deque<html_converter> converters;
 bool g_terminate_pool = false;
-//std::mutex g_queue_mtx;
-//std::condition_variable g_cv_pool;
 size_t g_done_count = 0u;
 size_t g_job_count = 0u;
 size_t g_shutdown_count = 0u;
 size_t max_threads = 1;
-//std::mutex g_done_mtx;
-//std::condition_variable g_cv_done;
-//std::mutex g_shutdown_mtx;
-//std::condition_variable g_cv_shutdown;
-//const auto TIMEOUT_ALL_JOBS_FINISHED(5000ms);
-//const auto TIMEOUT_SHUTDOWN_WORKERS(5000ms);
 
 static const std::string MSG_JOB_REQ = "JOB_REQ";
 static const std::string MSG_WORKER_READY = "WORKER_READY";
@@ -210,7 +206,46 @@ void add_job(const std::string& doc)
     //g_cv_pool.notify_one();
 }
 
-bool process_pending_jobs()
+void collect_inputs(const std::string& in, std::vector<std::string>& input_docs)
+{
+    using namespace std::filesystem;
+    path in_path(in);
+
+    if (is_directory(in_path))
+    {
+        for (auto& item : directory_iterator(in_path))
+        {
+            if (item.is_regular_file())
+            {
+                input_docs.push_back(item.path().generic_string());
+            }
+        }
+    }
+    else if (is_regular_file(in_path))
+    {
+        input_docs.push_back(in_path.generic_string());
+    }
+}
+
+out_file_name_t get_out_file_name(const std::string& in_path)
+{
+    std::string out_file_name;
+    auto path = in_path;
+    auto prefix_end = path.find_last_of("/");
+
+    if (prefix_end == std::string::npos && 0 < path.size())
+    {
+        out_file_name = path;
+    }
+    else if (prefix_end != std::string::npos)
+    {
+        out_file_name = path.substr(prefix_end + 1);
+    }
+
+    return out_file_name.empty() ? std::nullopt : out_file_name_t(out_file_name);
+}
+
+bool process_pending_jobs(const std::string& out_dir)
 {
     bool success = true;
     while (!converters.empty())
@@ -234,28 +269,17 @@ bool process_pending_jobs()
             {
                 ++g_done_count;
 
-                std::string out_file_name;
-                auto path = job.get_doc();
-                auto prefix_end = path.find_last_of("/");
+                const auto out_file_name = get_out_file_name(job.get_doc());
 
-                if (prefix_end == std::string::npos && 0 < path.size())
-                {
-                    out_file_name = path;
-                }
-                else if (prefix_end != std::string::npos)
-                {
-                    out_file_name = path.substr(prefix_end + 1);
-                }
-
-                if (!out_file_name.empty())
+                if (out_file_name)
                 {
                     using namespace std;
-                    //std::ofstream fout("..\\..\\out_\\" + out_file_name, ios::out|ios::trunc|ios::binary);
-                    std::ofstream fout("out_\\" + out_file_name + ".pdf", ios::out|ios::trunc|ios::binary);
+                    auto out_path = out_dir + "/" + *out_file_name + ".pdf";
+                    std::ofstream fout(out_path, ios::out|ios::trunc|ios::binary);
                     fout.write(reinterpret_cast<const char*>(doc_buffer), doc_size);
                     if (!fout)
                     {
-                        std::cerr << "Failed to write output file to: " << out_file_name;
+                        std::cerr << "Failed to write output file to: " << out_path << std::endl;
                     }
                 }
             }
@@ -264,7 +288,7 @@ bool process_pending_jobs()
     return success;
 }
 
-static unsigned int worker_main(zmq::context_t& context, int backend_port)
+static unsigned int worker_main(zmq::context_t& context, int backend_port, const std::string& out_dir)
 {
     zmq::socket_t worker(context, zmq::socket_type::dealer);
     std::ostringstream sout;
@@ -277,7 +301,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
     worker.connect(endpoint.data());
 
     // Process preloaded jobs first
-    process_pending_jobs();
+    process_pending_jobs(out_dir);
 
     for (;;)
     {
@@ -331,6 +355,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
             //
             std::this_thread::sleep_for(2000ms);
             //g_cv_shutdown.notify_one();
+            worker.set(zmq::sockopt::linger, 0);
             return 0;
         }
 
@@ -339,15 +364,18 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
             continue;
         }
 
-        process_pending_jobs();
+        process_pending_jobs(out_dir);
     }
 
+    worker.set(zmq::sockopt::linger, 0);
     return 1;
 }
 
 int main(int argc, char* argv[])
 {
     vector<string> inputDocs;
+    std::string out_dir = "out";
+    std::optional<int> override_workers_count;
 
     wkhtmltopdf_init(1);
     cout << "WKHtmlToX version " << wkhtmltopdf_version() << endl;
@@ -359,10 +387,6 @@ int main(int argc, char* argv[])
     for (int i = 1; i < argc; i++)
     {
         string arg = argv[i];
-
-        //string opt;
-        //transform(arg.begin(), arg.end(), back_inserter(opt),
-        //    [](unsigned char c) { return tolower(c); });
 
         if (arg == "-h")
         {
@@ -386,9 +410,38 @@ int main(int argc, char* argv[])
                 std::cerr << "port: " << backend_port << std::endl;
             }
         }
+        else if (arg.find("-out=") != std::string::npos)
+        {
+            std::istringstream sin {arg};
+            char c;
+            while (sin >> c && c != '=') {}
+            sin >> out_dir;
+            if (!sin)
+            {
+                std::cerr << "Argument -out is malformed: " << sin.str() << std::endl;
+                std::cerr << "out_dir: " << out_dir << std::endl;
+            }
+        }
+        else if (arg.find("-workers=") != std::string::npos)
+        {
+            std::istringstream sin {arg};
+            char c;
+            int val = 0;
+            while (sin >> c && c != '=') {}
+            sin >> val;
+            if (!sin)
+            {
+                std::cerr << "Argument -workers is malformed: " << sin.str() << std::endl;
+                std::cerr << "override_workers_count: " << *override_workers_count << std::endl;
+            }
+            else
+            {
+                override_workers_count = make_optional<int>(val);
+            }
+        }
         else
         {
-            inputDocs.push_back(arg);
+            collect_inputs(arg, inputDocs);
         }
     }
 
@@ -397,6 +450,7 @@ int main(int argc, char* argv[])
 #if _OPENMP
     max_threads = std::max(max_threads, omp_get_num_procs());
 #endif
+    max_threads = override_workers_count.value_or(max_threads);
     //max_threads = 1;
 
     // Print the list of arguments
@@ -415,7 +469,7 @@ int main(int argc, char* argv[])
 
     if (g_is_worker)
     {
-        worker_main(context, backend_port);
+        worker_main(context, backend_port, out_dir);
     }
     else
     {
@@ -435,7 +489,7 @@ int main(int argc, char* argv[])
 
         for (auto i = 0u; i < max_threads; ++i)
         {
-            g_workers.emplace_back(argv[0], backend_port, doc_matrix[i]);
+            g_workers.emplace_back(argv[0], backend_port, out_dir, doc_matrix[i]);
         }
 
         for (auto& doc : inputDocs)

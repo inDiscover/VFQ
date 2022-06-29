@@ -84,9 +84,9 @@ worker::worker(worker&& other) noexcept
 {
 }
 
-worker::worker(const std::string& prog_name, int backend_port, const std::vector<std::string>& docs)
+worker::worker(const std::string& prog_name, int backend_port, const std::string& out_dir, const std::vector<std::string>& docs)
 {
-	auto cmd_line = prog_name + " -worker " + " -backend=" + std::to_string(backend_port) + " ";
+	auto cmd_line = prog_name + " -worker " + " -backend=" + std::to_string(backend_port) + " -out=" + out_dir + " ";
 	std::for_each(docs.begin(), docs.end(), [&cmd_line](auto& el) { cmd_line += el + " "; });
 	proc_info = new PROCESS_INFORMATION;
 	create_child_process(cmd_line.data(), proc_info);
@@ -103,7 +103,7 @@ worker::~worker()
 			CloseHandle(proc_info->hProcess);
 			CloseHandle(proc_info->hThread);
 
-			// Terminate child process forcfully
+			// Terminate child process forcefully
 			::TerminateProcess(proc_info->hProcess, 1);
 		}
 		delete proc_info;
