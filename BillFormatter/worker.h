@@ -11,15 +11,15 @@
 class worker
 {
 public:
-	worker();
-	worker(const worker& other);
-	worker(worker&& other) noexcept;
-	worker(const std::string& prog_name, int backend_port, const std::vector<std::string>& docs);
-	virtual ~worker();
-	worker& operator=(const worker& other);
-	worker& operator=(worker&& other) noexcept;
+    worker();
+    worker(const worker& other);
+    worker(worker&& other) noexcept;
+    worker(const std::string& prog_name, int backend_port, const std::string& out_dir, const std::vector<std::string>& docs);
+    virtual ~worker();
+    worker& operator=(const worker& other);
+    worker& operator=(worker&& other) noexcept;
 
 private:
-	PROCESS_INFORMATION* proc_info = nullptr;
+    PROCESS_INFORMATION* proc_info = nullptr;
 };
 
