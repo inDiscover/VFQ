@@ -101,7 +101,7 @@ bool html_converter::convert()
 {
 	auto out = input_document + ".pdf";
 	global_settings = wkhtmltopdf_create_global_settings();
-	wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
+	//wkhtmltopdf_set_global_setting(global_settings, "out", out.data());
 	converter = wkhtmltopdf_create_converter(global_settings);
 	settings = wkhtmltopdf_create_object_settings();
 	wkhtmltopdf_set_object_setting(settings, "page", input_document.data());
@@ -119,11 +119,11 @@ bool html_converter::convert()
 	/* call the warning function when a warning is issued */
 	wkhtmltopdf_set_warning_callback(converter, warning);
 
-	std::cout << "Converting..." << std::endl;
+	std::cout << "Converting @" << std::hex << std::this_thread::get_id() << std::dec << " ..." << std::endl;
 
 	// Only for debugging
-	std::this_thread::sleep_for(500ms);
-	return true;
+	//std::this_thread::sleep_for(500ms);
+	//return true;
 	// Only for debugging
 
 	return wkhtmltopdf_convert(converter);

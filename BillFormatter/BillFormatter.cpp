@@ -1,6 +1,8 @@
 // BillFormatter.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+#include <fstream>
+#include <ios>
 #include <iostream>
 #include <iomanip>
 #include <array>
@@ -71,8 +73,8 @@ bool wait_for_shutdown(zmq::socket_t& broker)
     //std::unique_lock<std::mutex> lock(g_shutdown_mtx);
     //return g_cv_shutdown.wait_for(lock, TIMEOUT_SHUTDOWN_WORKERS, [] { return g_shutdown_count == max_threads; });
 
-    std::this_thread::sleep_for(5s);
-    return true;
+    //std::this_thread::sleep_for(5s);
+    //return true;
 
     std::string identity;
     std::string delimiter;
@@ -197,7 +199,7 @@ void signal_worker_ready(zmq::socket_t& worker, const std::string& worker_id)
 
 void add_job(const std::string& doc)
 {
-    std::cout << "Add job for " << doc << std::endl;
+    //std::cout << "Add job for " << doc << std::endl;
 
     {
         //std::unique_lock<std::mutex> lock(g_queue_mtx);
@@ -206,6 +208,60 @@ void add_job(const std::string& doc)
     }
 
     //g_cv_pool.notify_one();
+}
+
+bool process_pending_jobs()
+{
+    bool success = true;
+    while (!converters.empty())
+    {
+        auto job = converters.front();
+        converters.pop_front();
+        //lock.unlock();
+
+        //std::cout << "Processing job for " << job.get_doc() << std::endl;
+        if (!job.convert())
+        {
+            std::cerr << "Failed to convert " << job.get_doc() << ". Error=" << job.get_html_error_code() << std::endl;
+            success = false;
+        }
+        else
+        {
+            const unsigned char* doc_buffer = nullptr;
+            auto doc_size = job.get_output_buffer(&doc_buffer);
+            std::cout << "Converted document size " << doc_size << std::endl;
+            if (0 < doc_size)
+            {
+                ++g_done_count;
+
+                std::string out_file_name;
+                auto path = job.get_doc();
+                auto prefix_end = path.find_last_of("/");
+
+                if (prefix_end == std::string::npos && 0 < path.size())
+                {
+                    out_file_name = path;
+                }
+                else if (prefix_end != std::string::npos)
+                {
+                    out_file_name = path.substr(prefix_end + 1);
+                }
+
+                if (!out_file_name.empty())
+                {
+                    using namespace std;
+                    //std::ofstream fout("..\\..\\out_\\" + out_file_name, ios::out|ios::trunc|ios::binary);
+                    std::ofstream fout("out_\\" + out_file_name + ".pdf", ios::out|ios::trunc|ios::binary);
+                    fout.write(reinterpret_cast<const char*>(doc_buffer), doc_size);
+                    if (!fout)
+                    {
+                        std::cerr << "Failed to write output file to: " << out_file_name;
+                    }
+                }
+            }
+        }
+    }
+    return success;
 }
 
 static unsigned int worker_main(zmq::context_t& context, int backend_port)
@@ -220,6 +276,9 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
     auto endpoint = std::string("tcp://localhost:") + std::to_string(backend_port);
     worker.connect(endpoint.data());
 
+    // Process preloaded jobs first
+    process_pending_jobs();
+
     for (;;)
     {
         // Unlock this worker
@@ -228,10 +287,10 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
         //    return !converters.empty() || g_terminate_pool;
         //});
 
-        std::cout << "Worker " << worker_id << " signals WORKER_READY" << std::endl;
+        //std::cout << "Worker " << worker_id << " signals WORKER_READY" << std::endl;
         signal_worker_ready(worker, worker_id);
 
-        std::cout << "Worker " << worker_id << " waiting for job requests..." << std::endl;
+        //std::cout << "Worker " << worker_id << " waiting for job requests..." << std::endl;
 
         std::vector<zmq::message_t> recv_msgs;
         const auto rc = zmq::recv_multipart(worker, std::back_inserter(recv_msgs));
@@ -240,29 +299,15 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
             std::cerr << "Worker " << worker_id << " failed to receive multi-part job request" << std::endl;
             break;
         }
-        std::cout << "Got " << *rc
-                  << " messages" << std::endl;
-        //zmq::message_t& identity_msg = recv_msgs[0];
-        //zmq::message_t& delimiter_msg = recv_msgs[1];
-        //zmq::message_t& workload_msg = recv_msgs[2];
+        //std::cout << "Worker got " << *rc << " messages" << std::endl;
         auto workload = recv_msgs.rbegin()->to_string();
-
-        //zmq::message_t identity_msg;
-        //auto rc = worker.recv(identity_msg, zmq::recv_flags::none); // worker identity
-        //std::cout << "Worker " << worker_id << " received identity " << std::quoted(identity_msg.to_string()) << " [" << rc.value() << "]" << std::endl;
-        //zmq::message_t workload_msg;
-        //rc = worker.recv(workload_msg, zmq::recv_flags::none); // skip envelop delimiter
-        //std::cout << "Worker " << worker_id << " received delimiter " << std::quoted(workload_msg.to_string()) << " [" << rc.value() << "]" << std::endl;
-        //rc = worker.recv(workload_msg, zmq::recv_flags::none);
-        //std::cout << "Worker " << worker_id << " received workload " << std::quoted(workload_msg.to_string()) << " [" << rc.value() << "]" << std::endl;
-        //auto workload = workload_msg.to_string();
 
         std::cout << "Worker " << worker_id << " received request: " << workload << std::endl;
         if (MSG_WORKER_TERM == workload)
         {
             g_terminate_pool = true;
         }
-        else if (workload.find(MSG_JOB_REQ) != std::string::npos)
+        else if (workload.find("_REQ") != std::string::npos)
         {
             std::istringstream sin(workload);
             sin >> workload >> workload;
@@ -283,6 +328,8 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
             //std::unique_lock<std::mutex> lock(g_shutdown_mtx);
             ++g_shutdown_count;
             signal_worker_ready(worker, worker_id);
+            //
+            std::this_thread::sleep_for(2000ms);
             //g_cv_shutdown.notify_one();
             return 0;
         }
@@ -292,21 +339,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port)
             continue;
         }
 
-        auto job = converters.front();
-        converters.pop_front();
-        //lock.unlock();
-
-        std::cout << "Processing job for " << job.get_doc() << std::endl;
-        if (!job.convert())
-        {
-            std::cerr << "Failed to convert " << job.get_doc() << ". Error=" << job.get_html_error_code() << std::endl;
-        }
-        else
-        {
-            const unsigned char* doc_buffer = nullptr;
-            std::cout << "Converted document size " << job.get_output_buffer(&doc_buffer) << std::endl;
-            ++g_done_count;
-        }
+        process_pending_jobs();
     }
 
     return 1;
@@ -364,7 +397,7 @@ int main(int argc, char* argv[])
 #if _OPENMP
     max_threads = std::max(max_threads, omp_get_num_procs());
 #endif
-    max_threads = 1;
+    //max_threads = 1;
 
     // Print the list of arguments
     cout << "Input documents:\n";
@@ -390,10 +423,11 @@ int main(int argc, char* argv[])
         //
         zmq::socket_t broker(context, zmq::socket_type::router);
         std::vector<std::vector<std::string>> doc_matrix(max_threads);
+
         //for (auto i = 0u; i < inputDocs.size(); ++i)
         //{
-            //auto worker_idx = i % max_threads;
-            //doc_matrix[worker_idx].push_back(inputDocs[i]);
+        //    auto worker_idx = i % max_threads;
+        //    doc_matrix[worker_idx].push_back(inputDocs[i]);
         //}
 
         auto endpoint = std::string("tcp://*:") + std::to_string(backend_port);
@@ -406,7 +440,7 @@ int main(int argc, char* argv[])
 
         for (auto& doc : inputDocs)
         {
-            std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
+            //std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
 
             //  Next message gives us least recently used worker
             std::string identity;
@@ -430,11 +464,12 @@ int main(int argc, char* argv[])
             // Deploy more work
             std::ostringstream sout;
             sout << MSG_JOB_REQ << ' ' << doc;
+            workload = sout.str();
             std::array<zmq::const_buffer, 3> req_msgs =
             {
                 zmq::buffer(identity),
                 zmq::str_buffer(""),     // envelop delimiter
-                zmq::buffer(sout.str())  // workload
+                zmq::buffer(workload)  // workload
             };
             try
             {
@@ -450,6 +485,7 @@ int main(int argc, char* argv[])
             }
         }
 
+        std::this_thread::sleep_for(5s);
         shutdown_pool(broker);
     }
 
