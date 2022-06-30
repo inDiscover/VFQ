@@ -398,7 +398,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port, const
             ++g_shutdown_count;
             signal_worker_ready(worker, worker_id, job_succeeded.value_or(""), {});
             //
-            std::this_thread::sleep_for(2000ms);
+            //std::this_thread::sleep_for(2000ms);
             //g_cv_shutdown.notify_one();
             worker.set(zmq::sockopt::linger, 0);
             return 0;
@@ -591,7 +591,8 @@ int main(int argc, char* argv[])
             }
         }
 
-        std::this_thread::sleep_for(5s);
+        //std::this_thread::sleep_for(5s);
+        std::this_thread::sleep_for(1s);
         shutdown_pool(broker);
     }
 
