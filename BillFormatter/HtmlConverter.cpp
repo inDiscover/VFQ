@@ -6,28 +6,32 @@
 
 using namespace std::chrono_literals;
 
+error_msgs_t error_msgs;
+
 namespace
 {
 	/* Print out loading progress information */
 	void progress_changed(wkhtmltopdf_converter* c, int p) {
-		printf("%3d%%\r", p);
-		fflush(stdout);
+		//printf("%3d%%\r", p);
+		//fflush(stdout);
 	}
 
 	/* Print loading phase information */
 	void phase_changed(wkhtmltopdf_converter* c) {
-		int phase = wkhtmltopdf_current_phase(c);
-		printf("%s\n", wkhtmltopdf_phase_description(c, phase));
+		//int phase = wkhtmltopdf_current_phase(c);
+		//printf("%s\n", wkhtmltopdf_phase_description(c, phase));
 	}
 
 	/* Print a message to stderr when an error occurs */
 	void error(wkhtmltopdf_converter* c, const char* msg) {
-		fprintf(stderr, "Error: %s\n", msg);
+		//fprintf(stderr, "Error: %s\n", msg);
+		error_msgs.emplace_back(std::string("Error: ") + msg);
 	}
 
 	/* Print a message to stderr when a warning is issued */
 	void warning(wkhtmltopdf_converter* c, const char* msg) {
-		fprintf(stderr, "Warning: %s\n", msg);
+		//fprintf(stderr, "Warning: %s\n", msg);
+		error_msgs.emplace_back(std::string("Warning: ") + msg);
 	}
 }
 
@@ -115,13 +119,14 @@ bool html_converter::convert()
 	/* call the warning function when a warning is issued */
 	wkhtmltopdf_set_warning_callback(converter, warning);
 
-	std::cout << "Converting @" << std::hex << std::this_thread::get_id() << std::dec << " ..." << std::endl;
+	//std::cout << "Converting " << input_document << " @" << std::hex << std::this_thread::get_id() << std::dec << " ..." << std::endl;
 
 	// Only for debugging
 	//std::this_thread::sleep_for(500ms);
 	//return true;
 	// Only for debugging
 
+	error_msgs.clear();
 	return wkhtmltopdf_convert(converter);
 }
 
@@ -130,10 +135,11 @@ std::string html_converter::get_doc() const
 	return input_document;
 } 
 
-int html_converter::get_html_error_code() const
+int html_converter::get_html_error_code(error_msgs_t& out_msgs) const
 {
 	if (converter)
 	{
+		out_msgs = error_msgs;
 		return wkhtmltopdf_http_error_code(converter);
 	}
 	return 0;

@@ -1,7 +1,10 @@
 #pragma once
 #include <string>
+#include <vector>
 
 #include "wkhtmltox/pdf.h"
+
+using error_msgs_t = std::vector<std::string>;
 
 class html_converter
 {
@@ -15,7 +18,7 @@ public:
 	html_converter& operator=(html_converter&& other) noexcept;
 	bool convert();
 	std::string get_doc() const;
-	int get_html_error_code() const;
+	int get_html_error_code(error_msgs_t&) const;
 	size_t get_output_buffer(const unsigned char** ppbuffer) const;
 
 private:
