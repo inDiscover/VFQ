@@ -7,3 +7,6 @@ x64/
 
 *.args.json
 
+VTune*
+GPUCache/
+*.log
