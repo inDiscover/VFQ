@@ -116,13 +116,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>libzmq\include;cppzmq;wkhtmltox\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\third_party\libzmq\include;..\third_party\cppzmq;..\third_party\wkhtmltox\include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>libzmq\lib;wkhtmltox\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\third_party\libzmq\lib;..\third_party\wkhtmltox\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>libzmq-mt-4_3_5.lib;wkhtmltox.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -134,7 +134,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>libzmq\include;cppzmq;wkhtmltox\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\third_party\libzmq\include;..\third_party\cppzmq;..\third_party\wkhtmltox\include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -142,7 +142,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>libzmq\lib;wkhtmltox\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\third_party\libzmq\lib;..\third_party\wkhtmltox\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>libzmq-mt-4_3_5.lib;wkhtmltox.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
