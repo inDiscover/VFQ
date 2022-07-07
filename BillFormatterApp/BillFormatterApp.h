@@ -7,6 +7,11 @@
 
 using record_t = QList<QStandardItem*>;
 
+enum class billCycleSelect_t
+{
+    bc1, bc2
+};
+
 class BillFormatterApp : public QMainWindow
 {
     Q_OBJECT
@@ -23,11 +28,15 @@ public:
     void clearRecords();
 
 public slots:
-    void fetchRecords();
+    //bool fetchRecordsBc1();
+    //bool fetchRecordsBc2();
+
+private:
+    bool fetchRecords(billCycleSelect_t bc);
 
 private:
     Ui::BillFormatterAppClass ui;
-    QStandardItemModel* model;
+    QStandardItemModel* model = nullptr;
     QStringList horizontalHeader;
     QStringList verticalHeader;
     ButtonItemDelegate* tableItemDelegate;

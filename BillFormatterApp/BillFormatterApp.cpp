@@ -6,39 +6,12 @@ BillFormatterApp::BillFormatterApp(QWidget *parent)
 {
     ui.setupUi(this);
 
-    //Here we are setting your columns
+    //connect(ui.bc1Button, SIGNAL(clicked()), this, SLOT(fetchRecordsBc1()));
+    //connect(ui.bc1Button, &QPushButton::clicked, this, &BillFormatterApp::fetchRecordsBc1);
+    connect(ui.bc1Button, &QPushButton::clicked, this, [this] { fetchRecords(billCycleSelect_t::bc1); });
+    connect(ui.bc2Button, &QPushButton::clicked, this, [this] { fetchRecords(billCycleSelect_t::bc2); });
 
-    horizontalHeader.append("");
-    horizontalHeader.append("ID");
-    horizontalHeader.append("Time");
-    horizontalHeader.append("Status");
-    horizontalHeader.append("Document");
-
-    // Here we are creating our model
-
-    model = new QStandardItemModel();
-    tableItemDelegate = new ButtonItemDelegate();
-
-    model->setHorizontalHeaderLabels(horizontalHeader);
-    model->setVerticalHeaderLabels(verticalHeader);
-
-    ui.tableView->setModel(model); // This is necessary to display the data on table view
-    ui.tableView->verticalHeader()->setVisible(false);
-    ui.tableView->verticalHeader()->setDefaultSectionSize(10);
-    ui.tableView->setShowGrid(false);
-
-    ui.tableView->setItemDelegate(tableItemDelegate);
-    ui.tableView->horizontalHeader()->setStretchLastSection(true);
-
-    //// Here you can set your data in table view
-
-    //QStandardItem* col0 = new QStandardItem("");
-    //QStandardItem* col1 = new QStandardItem("ID");
-    //QStandardItem* col2 = new QStandardItem("Time");
-    //QStandardItem* col3 = new QStandardItem("Status");
-    //QStandardItem* col4 = new QStandardItem("Document");
-
-    //model->appendRow(QList<QStandardItem*>() << col1 << col2);
+	clearRecords();
 }
 
 BillFormatterApp::~BillFormatterApp()
@@ -57,10 +30,82 @@ void BillFormatterApp::addRecord(const record_t& record)
 
 void BillFormatterApp::clearRecords()
 {
-    model->clear();
+	if (model)
+	{
+		model->clear();
+	}
+
+    model = new QStandardItemModel();
+    tableItemDelegate = new ButtonItemDelegate();
+
+    model->setHorizontalHeaderLabels(horizontalHeader);
+    model->setVerticalHeaderLabels(verticalHeader);
+
+    // Here we are creating our model
+
+    ui.tableView->setModel(model); // This is necessary to display the data on table view
+    ui.tableView->verticalHeader()->setVisible(false);
+    ui.tableView->verticalHeader()->setDefaultSectionSize(10);
+    ui.tableView->setShowGrid(false);
+
+    ui.tableView->setItemDelegate(tableItemDelegate);
+    ui.tableView->horizontalHeader()->setStretchLastSection(true);
+
+    //Here we are setting your columns
+
+    horizontalHeader.append("");
+    horizontalHeader.append("ID");
+    horizontalHeader.append("Time");
+    horizontalHeader.append("Status");
+    horizontalHeader.append("Document");
 }
 
-void BillFormatterApp::fetchRecords()
+bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
 {
+	QStandardItem* col0 = nullptr;
+	QStandardItem* col1 = nullptr;
+	QStandardItem* col2 = nullptr;
+	QStandardItem* col3 = nullptr;
+	QStandardItem* col4 = nullptr;
+
+	clearRecords();
+
+	for (auto i{ 0 }; i < 4; ++i)
+	{
+		switch (bc)
+		{
+		case billCycleSelect_t::bc1:
+			col0 = new QStandardItem("");
+			col1 = new QStandardItem("0000");
+			col2 = new QStandardItem("2022-01-02");
+			col3 = new QStandardItem("Success");
+			col4 = new QStandardItem("bill00.html");
+			break;
+		case billCycleSelect_t::bc2:
+			col0 = new QStandardItem("");
+			col1 = new QStandardItem("0000");
+			col2 = new QStandardItem("2022-01-16");
+			col3 = new QStandardItem("Failed");
+			col4 = new QStandardItem("bill00.html");
+			break;
+		default:
+			return false;
+		}
+
+		record_t record = record_t() << col0 << col1 << col2 << col3 << col4;
+		addRecord(record);
+	}
+
+	return true;
 }
+
+//bool BillFormatterApp::fetchRecordsBc1()
+//{
+//    return fetchRecords(billCycleSelect_t::bc1);
+//}
+//
+//bool BillFormatterApp::fetchRecordsBc2()
+//{
+//    return fetchRecords(billCycleSelect_t::bc2);
+//}
 
