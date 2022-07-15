@@ -5,6 +5,11 @@
 #include "ButtonItemDelegate.h"
 #include "ui_BillFormatterApp.h"
 
+#include "zmq.hpp"
+#include "zmq_addon.hpp"
+
+#include "CmdClient.h"
+
 using record_t = QList<QStandardItem*>;
 
 enum class billCycleSelect_t
@@ -40,4 +45,7 @@ private:
     QStringList horizontalHeader;
     QStringList verticalHeader;
     ButtonItemDelegate* tableItemDelegate;
+
+    zmq::context_t context;
+    CmdClient req_sender;
 };

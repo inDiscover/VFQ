@@ -34,6 +34,7 @@
 
 #include "HtmlConverter.h"
 #include "worker.h"
+#include "CmdServer.h"
 
 using namespace std;
 using namespace std::chrono_literals;
@@ -532,64 +533,70 @@ int main(int argc, char* argv[])
         auto endpoint = std::string("tcp://*:") + std::to_string(backend_port);
         broker.bind(endpoint.data());
 
+        CmdServer cmd_receiver(context);
+
         for (auto i = 0u; i < max_threads; ++i)
         {
             g_workers.emplace_back(argv[0], backend_port, out_dir, doc_matrix[i]);
         }
 
-        for (auto& doc : inputDocs)
+        // Process all initial conversion jobs and start listening to client's requests
+        for (;;)
         {
-            //std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
+			for (auto& doc : inputDocs)
+			{
+				//std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
 
-            //  Next message gives us least recently used worker
-            std::string identity;
-            std::string delimiter;
-            std::string workload;
-            std::vector<zmq::message_t> recv_msgs;
-            const auto ret = zmq::recv_multipart(broker, std::back_inserter(recv_msgs));
+				//  Next message gives us least recently used worker
+				std::string identity;
+				std::string delimiter;
+				std::string workload;
+				std::vector<zmq::message_t> recv_msgs;
+				const auto ret = zmq::recv_multipart(broker, std::back_inserter(recv_msgs));
 
-            //std::cout << "Broker got " << *ret << " messages" << std::endl;
-            identity = recv_msgs.begin()->to_string();
-            //delimiter = recv_msgs[1].to_string();
-            workload = std::next(std::begin(recv_msgs))->to_string();
-            //std::cout << "Identity: " << identity << " Delimiter: " << delimiter << " Workload: " << workload << std::endl;
+				//std::cout << "Broker got " << *ret << " messages" << std::endl;
+				identity = recv_msgs.begin()->to_string();
+				//delimiter = recv_msgs[1].to_string();
+				workload = std::next(std::begin(recv_msgs))->to_string();
+				//std::cout << "Identity: " << identity << " Delimiter: " << delimiter << " Workload: " << workload << std::endl;
 
-            if (check_ready_result(ret, recv_msgs))
-            {
-                ++g_done_count;
-            }
+				if (check_ready_result(ret, recv_msgs))
+				{
+					++g_done_count;
+				}
 
-            if (MSG_WORKER_READY == workload)
-            {
-            }
-            else
-            {
-                std::cerr << "Broker got unexpected message from worker " << identity << ": " << workload << std::endl;
-            }
+				if (MSG_WORKER_READY == workload)
+				{
+				}
+				else
+				{
+					std::cerr << "Broker got unexpected message from worker " << identity << ": " << workload << std::endl;
+				}
 
-            // Deploy more work
-            std::ostringstream sout;
-            sout << MSG_JOB_REQ << ' ' << doc;
-            workload = sout.str();
-            std::array<zmq::const_buffer, 3> req_msgs =
-            {
-                zmq::buffer(identity),
-                zmq::str_buffer(""),     // envelop delimiter
-                zmq::buffer(workload)  // workload
-            };
-            try
-            {
-                std::cout << "Sending multi-part JOB_REQ {" << identity << ", " << sout.str() << "}" << std::endl;
-                if (!zmq::send_multipart(broker, req_msgs))
-                {
-                    std::cerr << "Failed to send JOB_REQ." << std::endl;
-                }
-            }
-            catch (const zmq::error_t& err)
-            {
-                std::cerr << "Failed to send JOB_REQ." << err.what() << std::endl;
-            }
-        }
+				// Deploy more work
+				std::ostringstream sout;
+				sout << MSG_JOB_REQ << ' ' << doc;
+				workload = sout.str();
+				std::array<zmq::const_buffer, 3> req_msgs =
+				{
+					zmq::buffer(identity),
+					zmq::str_buffer(""),     // envelop delimiter
+					zmq::buffer(workload)  // workload
+				};
+				try
+				{
+					std::cout << "Sending multi-part JOB_REQ {" << identity << ", " << sout.str() << "}" << std::endl;
+					if (!zmq::send_multipart(broker, req_msgs))
+					{
+						std::cerr << "Failed to send JOB_REQ." << std::endl;
+					}
+				}
+				catch (const zmq::error_t& err)
+				{
+					std::cerr << "Failed to send JOB_REQ." << err.what() << std::endl;
+				}
+			}
+		}
 
         //std::this_thread::sleep_for(5s);
         std::this_thread::sleep_for(1s);
