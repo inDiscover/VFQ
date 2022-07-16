@@ -55,17 +55,6 @@ static const std::string MSG_JOB_REQ = "JOB_REQ";
 static const std::string MSG_WORKER_READY = "WORKER_READY";
 static const std::string MSG_WORKER_TERM = "WORKER_TERM";
 
-void print_usage()
-{
-    cout << "BillFormatter usage:\n";
-    cout << "  BillFormatter.exe <Options> <Arguments>\n";
-    cout << "  Options:\n";
-    cout << "    -h: Print help\n";
-    cout << "  Arguments:\n";
-    cout << "    One or more documents to be converted to PDF\n";
-    cout << endl;
-}
-
 bool check_ready_result(const zmq::recv_result_t& ret, const std::vector<zmq::message_t>& recv_msgs)
 {
     static const auto doc_msg_offset = 2u;
@@ -193,11 +182,11 @@ void shutdown_pool(zmq::socket_t& broker)
     converters.clear();
 }
 
-bool wait_for_all_jobs()
-{
-    std::this_thread::sleep_for(6s);
-    return true;
-}
+//bool wait_for_all_jobs()
+//{
+//    std::this_thread::sleep_for(6s);
+//    return true;
+//}
 
 void signal_worker_ready(zmq::socket_t& worker, const std::string& worker_id, const std::string& job, const error_msgs_t& error_msgs)
 {
@@ -218,19 +207,6 @@ void signal_worker_ready(zmq::socket_t& worker, const std::string& worker_id, co
     {
         std::cerr << "Worker " << worker_id << " failed to send WORKER_READY." << err.what() << std::endl;
     }
-}
-
-void add_job(const std::string& doc)
-{
-    //std::cout << "Add job for " << doc << std::endl;
-
-    {
-        //std::unique_lock<std::mutex> lock(g_queue_mtx);
-        converters.emplace_back(doc);
-        ++g_job_count;
-    }
-
-    //g_cv_pool.notify_one();
 }
 
 void collect_inputs(const std::string& in, std::vector<std::string>& input_docs)
@@ -281,6 +257,19 @@ out_file_name_t get_out_file_name(const std::string& in_path)
     return out_file_name.empty() ? std::nullopt : out_file_name_t(out_file_name);
 }
 
+void add_job(const std::string& doc)
+{
+    //std::cout << "Add job for " << doc << std::endl;
+
+    {
+        //std::unique_lock<std::mutex> lock(g_queue_mtx);
+        converters.emplace_back(doc);
+        ++g_job_count;
+    }
+
+    //g_cv_pool.notify_one();
+}
+
 job_success_result_t process_pending_jobs(const std::string& out_dir, error_msgs_t& error_msgs)
 {
     std::string job_doc;
@@ -329,6 +318,17 @@ job_success_result_t process_pending_jobs(const std::string& out_dir, error_msgs
         }
     }
     return job_doc;
+}
+
+void print_usage()
+{
+    cout << "BillFormatter usage:\n";
+    cout << "  BillFormatter.exe <Options> <Arguments>\n";
+    cout << "  Options:\n";
+    cout << "    -h: Print help\n";
+    cout << "  Arguments:\n";
+    cout << "    One or more documents to be converted to PDF\n";
+    cout << endl;
 }
 
 static unsigned int worker_main(zmq::context_t& context, int backend_port, const std::string& out_dir)
