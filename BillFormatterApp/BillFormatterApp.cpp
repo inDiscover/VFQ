@@ -101,7 +101,7 @@ bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
 
 	constexpr auto cnt = 10;
 	message_data_t data;
-	ReqRecords rec_req(0, cnt);
+	ReqRecords rec_req(nullptr, 0, cnt);
 	req_sender.request_receive(rec_req, data);
 
 	for (auto i{ 0 }; i < data.size(); ++i)
