@@ -117,3 +117,47 @@ void CmdServer::get_times(size_t offset, size_t count, message_data_t& ret)
         }
     }
 }
+
+void CmdServer::get_records(size_t offset, size_t count, message_data_t& ret)
+{
+    auto file_number = 0u;
+    auto const out_dir = get_out_dir();
+    for (auto const& entry : std::filesystem::directory_iterator(out_dir))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".pdf")
+        {
+            if (offset <= file_number && file_number < offset + count)
+            {
+                std::ostringstream sout;
+
+                // ID
+                sout << std::setfill('0') << std::setw(6) << file_number;
+
+                // Time
+                auto const ftime = entry.last_write_time();
+                auto const utctime = std::chrono::clock_cast<std::chrono::utc_clock>(ftime);
+                auto const cftime = std::chrono::system_clock::to_time_t(
+                        std::chrono::utc_clock::to_sys(utctime));
+
+                std::array<char, 100> buffer;
+#pragma warning(push)
+#pragma warning(disable : 4996)
+                if (std::strftime(buffer.data(), buffer.size(), "%FT%T%z",
+                        std::localtime(&cftime)))
+                {
+                    sout << ' ' << buffer.data();
+                }
+#pragma warning(pop)
+
+                // Status
+                // TODO Determine conversion status based on ...!?
+                sout << ' ' << "Converted";
+
+                // Bill
+                sout << ' ' << entry.path().filename();
+                ret.emplace_back(std::move(sout.str()));
+            }
+            ++file_number;
+        }
+    }
+}

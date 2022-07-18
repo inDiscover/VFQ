@@ -25,6 +25,7 @@ public:
 
 public:
         void get_times(size_t offset, size_t count, message_data_t& ret) override;
+        void get_records(size_t offset, size_t count, message_data_t& ret) override;
 
 private:
         template<class ItBegin, class ItEnd>

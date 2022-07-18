@@ -21,8 +21,8 @@ BillFormatterApp::BillFormatterApp(QWidget *parent)
     horizontalHeader.append("Status");
     horizontalHeader.append("Document");
 
-	req_sender = CmdClient(context);
-	clearRecords();
+    req_sender = CmdClient(context);
+    clearRecords();
 }
 
 BillFormatterApp::~BillFormatterApp()
@@ -41,10 +41,10 @@ void BillFormatterApp::addRecord(const record_t& record)
 
 void BillFormatterApp::clearRecords()
 {
-	if (model)
-	{
-		model->clear();
-	}
+    if (model)
+    {
+        model->clear();
+    }
 
     model = new QStandardItemModel();
     tableItemDelegate = new ButtonItemDelegate();
@@ -61,70 +61,74 @@ void BillFormatterApp::clearRecords()
 
     ui.tableView->setItemDelegate(tableItemDelegate);
     ui.tableView->horizontalHeader()->setStretchLastSection(true);
+
+    ui.tableView->setColumnWidth(0, 20);
+    ui.tableView->setColumnWidth(1, 50);
+    ui.tableView->setColumnWidth(2, 180);
 }
 
 bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
 {
-	clearRecords();
+    clearRecords();
 
-	//QStandardItem* col0 = nullptr;
-	//QStandardItem* col1 = nullptr;
-	//QStandardItem* col2 = nullptr;
-	//QStandardItem* col3 = nullptr;
-	//QStandardItem* col4 = nullptr;
+    //QStandardItem* col0 = nullptr;
+    //QStandardItem* col1 = nullptr;
+    //QStandardItem* col2 = nullptr;
+    //QStandardItem* col3 = nullptr;
+    //QStandardItem* col4 = nullptr;
 
-	//for (auto i{ 0 }; i < 4; ++i)
-	//{
-	//	switch (bc)
-	//	{
-	//	case billCycleSelect_t::bc1:
-	//		col0 = new QStandardItem("");
-	//		col1 = new QStandardItem("0000");
-	//		col2 = new QStandardItem("2022-01-02");
-	//		col3 = new QStandardItem("Success");
-	//		col4 = new QStandardItem("bill00.html");
-	//		break;
-	//	case billCycleSelect_t::bc2:
-	//		col0 = new QStandardItem("");
-	//		col1 = new QStandardItem("0000");
-	//		col2 = new QStandardItem("2022-01-16");
-	//		col3 = new QStandardItem("Failed");
-	//		col4 = new QStandardItem("bill00.html");
-	//		break;
-	//	default:
-	//		return false;
-	//	}
+    //for (auto i{ 0 }; i < 4; ++i)
+    //{
+    //	switch (bc)
+    //	{
+    //	case billCycleSelect_t::bc1:
+    //		col0 = new QStandardItem("");
+    //		col1 = new QStandardItem("0000");
+    //		col2 = new QStandardItem("2022-01-02");
+    //		col3 = new QStandardItem("Success");
+    //		col4 = new QStandardItem("bill00.html");
+    //		break;
+    //	case billCycleSelect_t::bc2:
+    //		col0 = new QStandardItem("");
+    //		col1 = new QStandardItem("0000");
+    //		col2 = new QStandardItem("2022-01-16");
+    //		col3 = new QStandardItem("Failed");
+    //		col4 = new QStandardItem("bill00.html");
+    //		break;
+    //	default:
+    //		return false;
+    //	}
 
-	//	record_t record = record_t() << col0 << col1 << col2 << col3 << col4;
-	//	addRecord(record);
-	//}
+    //	record_t record = record_t() << col0 << col1 << col2 << col3 << col4;
+    //	addRecord(record);
+    //}
 
-	constexpr auto cnt = 10;
-	message_data_t data;
-	ReqRecords rec_req(nullptr, 0, cnt);
-	req_sender.request_receive(rec_req, data);
+    constexpr auto cnt = 10;
+    message_data_t data;
+    ReqRecords rec_req(nullptr, 0, cnt);
+    req_sender.request_receive(rec_req, data);
 
-	for (auto i{ 0 }; i < data.size(); ++i)
-	{
-		std::istringstream sin(data[i]);
-		std::array<std::string, 5> items;
-		std::vector<QStandardItem*> cells;
-		cells.reserve(items.size());
+    for (auto i{ 0 }; i < data.size(); ++i)
+    {
+        std::istringstream sin(data[i]);
+        std::array<std::string, 5> items;
+        std::vector<QStandardItem*> cells;
+        cells.reserve(items.size());
 
-		// First cell contains the buttons
-		items[0] = std::string();
-		// Read the records elements
-		sin >> items[1] >> items[2] >> items[3];
-		items[4].resize(1024);
-		sin.getline(items[4].data(), items[4].size());
-		auto it = cells.begin();
-		std::for_each(items.begin(), items.end(), [&](const auto& el) { cells.push_back(new QStandardItem(el.data())); });
+        // First cell contains the buttons
+        items[0] = std::string();
+        // Read the records elements
+        sin >> items[1] >> items[2] >> items[3];
+        items[4].resize(1024);
+        sin.getline(items[4].data(), items[4].size());
+        auto it = cells.begin();
+        std::for_each(items.begin(), items.end(), [&](const auto& el) { cells.push_back(new QStandardItem(el.data())); });
 
-		record_t record = record_t() << cells[0] << cells[1] << cells[2] << cells[3] << cells[4];
-		addRecord(record);
-	}
+        record_t record = record_t() << cells[0] << cells[1] << cells[2] << cells[3] << cells[4];
+        addRecord(record);
+    }
 
-	return true;
+    return true;
 }
 
 //bool BillFormatterApp::fetchRecordsBc1()

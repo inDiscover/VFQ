@@ -10,6 +10,7 @@ class IRecordProvider
 {
 public:
         virtual void get_times(size_t offset, size_t count, message_data_t& ret) = 0;
+        virtual void get_records(size_t offset, size_t count, message_data_t& ret) = 0;
 };
 
 class IReq
