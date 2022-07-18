@@ -540,7 +540,15 @@ int main(int argc, char* argv[])
         //}
 
         auto endpoint = std::string("tcp://*:") + std::to_string(backend_port);
-        broker.bind(endpoint.data());
+        try
+        {
+            broker.bind(endpoint.data());
+        }
+        catch (const std::exception& err)
+        {
+            std::cerr << "Server failed to bind to TCP port " << backend_port << ": " << err.what() << std::endl;
+            return 1;
+        }
 
         CmdServer cmd_receiver(context);
 
@@ -552,6 +560,11 @@ int main(int argc, char* argv[])
         // Process all initial conversion jobs and start listening to client's requests
         for (;;)
         {
+            if (inputDocs.empty())
+            {
+                // Keep the main-thread from consuming a whole CPU
+                std::this_thread::sleep_for(1s);
+            }
             for (auto& doc : inputDocs)
             {
                 //std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
@@ -605,6 +618,7 @@ int main(int argc, char* argv[])
                     std::cerr << "Failed to send JOB_REQ." << err.what() << std::endl;
                 }
             }
+            inputDocs.clear();
         }
 
         //std::this_thread::sleep_for(5s);
