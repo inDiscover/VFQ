@@ -23,7 +23,7 @@ class BillFormatterApp : public QMainWindow
 
 public:
     BillFormatterApp(QWidget *parent = nullptr);
-    virtual ~BillFormatterApp();
+    virtual ~BillFormatterApp() = default;
 
 public:
     static BillFormatterApp* instance();

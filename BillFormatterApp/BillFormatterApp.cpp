@@ -25,9 +25,6 @@ BillFormatterApp::BillFormatterApp(QWidget *parent)
     clearRecords();
 }
 
-BillFormatterApp::~BillFormatterApp()
-{}
-
 BillFormatterApp* BillFormatterApp::instance()
 {
     static BillFormatterApp app;
@@ -71,38 +68,6 @@ bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
 {
     clearRecords();
 
-    //QStandardItem* col0 = nullptr;
-    //QStandardItem* col1 = nullptr;
-    //QStandardItem* col2 = nullptr;
-    //QStandardItem* col3 = nullptr;
-    //QStandardItem* col4 = nullptr;
-
-    //for (auto i{ 0 }; i < 4; ++i)
-    //{
-    //	switch (bc)
-    //	{
-    //	case billCycleSelect_t::bc1:
-    //		col0 = new QStandardItem("");
-    //		col1 = new QStandardItem("0000");
-    //		col2 = new QStandardItem("2022-01-02");
-    //		col3 = new QStandardItem("Success");
-    //		col4 = new QStandardItem("bill00.html");
-    //		break;
-    //	case billCycleSelect_t::bc2:
-    //		col0 = new QStandardItem("");
-    //		col1 = new QStandardItem("0000");
-    //		col2 = new QStandardItem("2022-01-16");
-    //		col3 = new QStandardItem("Failed");
-    //		col4 = new QStandardItem("bill00.html");
-    //		break;
-    //	default:
-    //		return false;
-    //	}
-
-    //	record_t record = record_t() << col0 << col1 << col2 << col3 << col4;
-    //	addRecord(record);
-    //}
-
     constexpr auto cnt = 10;
     message_data_t data;
     ReqRecords rec_req(nullptr, 0, cnt);
@@ -117,11 +82,10 @@ bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
 
         // First cell contains the buttons
         items[0] = std::string();
+
         // Read the records elements
         sin >> items[1] >> items[2] >> items[3];
-        items[4].resize(1024);
-        sin.getline(items[4].data(), items[4].size());
-        auto it = cells.begin();
+        std::getline(sin, items[4]);
         std::for_each(items.begin(), items.end(), [&](const auto& el) { cells.push_back(new QStandardItem(el.data())); });
 
         record_t record = record_t() << cells[0] << cells[1] << cells[2] << cells[3] << cells[4];
