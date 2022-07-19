@@ -271,7 +271,9 @@ void add_job(const std::string& doc)
 
     {
         //std::unique_lock<std::mutex> lock(g_queue_mtx);
-        converters.emplace_back(doc);
+        converters.push_back(html_converter(doc));
+        // Equivalent code:
+        //converters.emplace_back(doc);
         ++g_job_count;
     }
 
@@ -283,6 +285,9 @@ static job_success_result_t process_pending_jobs(const std::string& out_dir, err
     std::string job_doc;
     while (!converters.empty())
     {
+        // Assignment operation
+        // job ... this object
+        // converters.front() ... other object
         auto job = converters.front();
         converters.pop_front();
         job_doc = job.get_doc();

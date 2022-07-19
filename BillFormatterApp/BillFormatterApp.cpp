@@ -23,6 +23,8 @@ BillFormatterApp::BillFormatterApp(QWidget *parent)
 
     req_sender = CmdClient(context);
     clearRecords();
+
+    create_paging();
 }
 
 BillFormatterApp* BillFormatterApp::instance()
@@ -66,11 +68,22 @@ void BillFormatterApp::clearRecords()
 
 bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
 {
+    // TODO Introduce handling of two separate bill cycles
+    switch (bc)
+    {
+        case billCycleSelect_t::bc1:
+        case billCycleSelect_t::bc2:
+            fetchRecords(0, paging_page_length);
+    }
+    return true;
+}
+
+bool BillFormatterApp::fetchRecords(size_t offset, size_t count)
+{
     clearRecords();
 
-    constexpr auto cnt = 10;
     message_data_t data;
-    ReqRecords rec_req(nullptr, 0, cnt);
+    ReqRecords rec_req(nullptr, offset, count);
     req_sender.request_receive(rec_req, data);
 
     for (auto i{ 0 }; i < data.size(); ++i)
@@ -93,6 +106,46 @@ bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
     }
 
     return true;
+}
+
+size_t BillFormatterApp::get_records_count()
+{
+    message_data_t data;
+    ReqCount req{};
+    req_sender.request_receive(req, data);
+
+    if (!data.empty())
+    {
+        char* pend = nullptr;
+        record_count = std::strtoul(data[0].data(), &pend, 10);
+        if (data[0].data() == pend)
+        {
+            // Failed to convert string to number
+            record_count = 0;
+        }
+    }
+
+    return record_count;
+}
+
+void BillFormatterApp::create_paging()
+{
+    record_count = get_records_count();
+    auto recCntText = QString::number(record_count) + QLatin1String(" records");
+    ui.recCntButton->setText(recCntText);
+
+    auto page_number = 0u;
+    for (auto rec_number=0u; rec_number<record_count && page_number<paging_page_count; rec_number+=paging_page_length)
+    {
+        auto* page_button = new QCommandLinkButton(QString::number(++page_number));
+        page_button->setIconSize({0, 0});
+        page_button->setMinimumSize({10, 0});
+        page_button->setMaximumSize({60, 50});
+        connect(page_button, &QCommandLinkButton::clicked, this, [=] { fetchRecords(rec_number, this->paging_page_length); });
+        paging_buttons.append(page_button);
+        ui.pagingPanel->addWidget(page_button);
+    }
+    ui.pagingPanel->addStretch();
 }
 
 //bool BillFormatterApp::fetchRecordsBc1()

@@ -38,6 +38,9 @@ public slots:
 
 private:
     bool fetchRecords(billCycleSelect_t bc);
+    bool fetchRecords(size_t offset, size_t count);
+    size_t get_records_count();
+    void create_paging();
 
 private:
     Ui::BillFormatterAppClass ui;
@@ -48,4 +51,10 @@ private:
 
     zmq::context_t context;
     CmdClient req_sender;
+
+    size_t record_count = 0;
+    QList<QCommandLinkButton*> paging_buttons;
+    size_t paging_index_begin = 0;
+    size_t paging_page_count = 5;
+    size_t paging_page_length = 10;
 };

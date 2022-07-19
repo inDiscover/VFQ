@@ -84,6 +84,20 @@ bool CmdServer::receive_reply()
     return true;
 }
 
+size_t CmdServer::get_records_count()
+{
+    auto file_number = 0u;
+    auto const out_dir = get_out_dir();
+    for (auto const& entry : std::filesystem::directory_iterator(out_dir))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".pdf")
+        {
+            ++file_number;
+        }
+    }
+    return file_number;
+}
+
 void CmdServer::get_times(size_t offset, size_t count, message_data_t& ret)
 {
     auto file_number = 0u;

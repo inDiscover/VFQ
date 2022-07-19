@@ -10,7 +10,7 @@
 #include <stdexcept>
 
 
-using req_t = std::variant<ReqRecords>;
+using req_t = std::variant<ReqRecords, ReqCount>;
 using req_return_t = std::optional<req_t>;
 
 
@@ -24,6 +24,7 @@ public:
         bool receive_reply();
 
 public:
+        size_t get_records_count() override;
         void get_times(size_t offset, size_t count, message_data_t& ret) override;
         void get_records(size_t offset, size_t count, message_data_t& ret) override;
 
@@ -61,6 +62,12 @@ inline req_return_t CmdServer::deserialize(ItBegin it, const ItEnd end)
                         req.provider = this;
                         req.offset = parse_ulong((++it)->to_string());
                         req.count = parse_ulong((++it)->to_string());
+                        return req;
+                }
+                else if (cmd == ReqCount::CMD)
+                {
+                        ReqCount req{};
+                        req.provider = this;
                         return req;
                 }
         }
