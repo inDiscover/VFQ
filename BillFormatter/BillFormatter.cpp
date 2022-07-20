@@ -1,6 +1,8 @@
 // BillFormatter.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+#include <chrono>
+#include <ctime>
 #include <fstream>
 #include <ios>
 #include <iostream>
@@ -34,6 +36,7 @@
 
 #include "HtmlConverter.h"
 #include "worker.h"
+#include "CmdServer.h"
 
 using namespace std;
 using namespace std::chrono_literals;
@@ -49,23 +52,13 @@ size_t g_done_count = 0u;
 size_t g_job_count = 0u;
 size_t g_shutdown_count = 0u;
 size_t max_threads = 1;
+static std::string g_out_dir;
 
 static const std::string MSG_JOB_REQ = "JOB_REQ";
 static const std::string MSG_WORKER_READY = "WORKER_READY";
 static const std::string MSG_WORKER_TERM = "WORKER_TERM";
 
-void print_usage()
-{
-    cout << "BillFormatter usage:\n";
-    cout << "  BillFormatter.exe <Options> <Arguments>\n";
-    cout << "  Options:\n";
-    cout << "    -h: Print help\n";
-    cout << "  Arguments:\n";
-    cout << "    One or more documents to be converted to PDF\n";
-    cout << endl;
-}
-
-bool check_ready_result(const zmq::recv_result_t& ret, const std::vector<zmq::message_t>& recv_msgs)
+static bool check_ready_result(const zmq::recv_result_t& ret, const std::vector<zmq::message_t>& recv_msgs)
 {
     static const auto doc_msg_offset = 2u;
     static const auto error_msg_offset = 3u;
@@ -91,7 +84,7 @@ bool check_ready_result(const zmq::recv_result_t& ret, const std::vector<zmq::me
     return success;
 }
 
-bool wait_for_shutdown(zmq::socket_t& broker)
+static bool wait_for_shutdown(zmq::socket_t& broker)
 {
     //std::unique_lock<std::mutex> lock(g_shutdown_mtx);
     //return g_cv_shutdown.wait_for(lock, TIMEOUT_SHUTDOWN_WORKERS, [] { return g_shutdown_count == max_threads; });
@@ -114,7 +107,7 @@ bool wait_for_shutdown(zmq::socket_t& broker)
     return MSG_WORKER_READY == workload;
 }
 
-void signal_shutdown_pool(zmq::socket_t& broker)
+static void signal_shutdown_pool(zmq::socket_t& broker)
 {
     // Signal shutdown of all workers
     for (auto i=0; i<max_threads; ++i)
@@ -161,7 +154,7 @@ void signal_shutdown_pool(zmq::socket_t& broker)
     }
 }
 
-void shutdown_pool(zmq::socket_t& broker)
+static void shutdown_pool(zmq::socket_t& broker)
 {
     {
         //std::unique_lock<std::mutex> lock(g_queue_mtx);
@@ -192,13 +185,13 @@ void shutdown_pool(zmq::socket_t& broker)
     converters.clear();
 }
 
-bool wait_for_all_jobs()
-{
-    std::this_thread::sleep_for(6s);
-    return true;
-}
+//bool wait_for_all_jobs()
+//{
+//    std::this_thread::sleep_for(6s);
+//    return true;
+//}
 
-void signal_worker_ready(zmq::socket_t& worker, const std::string& worker_id, const std::string& job, const error_msgs_t& error_msgs)
+static void signal_worker_ready(zmq::socket_t& worker, const std::string& worker_id, const std::string& job, const error_msgs_t& error_msgs)
 {
     std::vector<zmq::const_buffer> req_msgs =
     {
@@ -219,20 +212,7 @@ void signal_worker_ready(zmq::socket_t& worker, const std::string& worker_id, co
     }
 }
 
-void add_job(const std::string& doc)
-{
-    //std::cout << "Add job for " << doc << std::endl;
-
-    {
-        //std::unique_lock<std::mutex> lock(g_queue_mtx);
-        converters.emplace_back(doc);
-        ++g_job_count;
-    }
-
-    //g_cv_pool.notify_one();
-}
-
-void collect_inputs(const std::string& in, std::vector<std::string>& input_docs)
+static void collect_inputs(const std::string& in, std::vector<std::string>& input_docs)
 {
     using namespace std::filesystem;
     path in_path(in);
@@ -262,7 +242,7 @@ void collect_inputs(const std::string& in, std::vector<std::string>& input_docs)
     }
 }
 
-out_file_name_t get_out_file_name(const std::string& in_path)
+static out_file_name_t get_out_file_name(const std::string& in_path)
 {
     std::string out_file_name;
     auto path = in_path;
@@ -280,11 +260,34 @@ out_file_name_t get_out_file_name(const std::string& in_path)
     return out_file_name.empty() ? std::nullopt : out_file_name_t(out_file_name);
 }
 
-job_success_result_t process_pending_jobs(const std::string& out_dir, error_msgs_t& error_msgs)
+std::string const& get_out_dir()
+{
+    return g_out_dir;
+}
+
+void add_job(const std::string& doc)
+{
+    //std::cout << "Add job for " << doc << std::endl;
+
+    {
+        //std::unique_lock<std::mutex> lock(g_queue_mtx);
+        converters.push_back(html_converter(doc));
+        // Equivalent code:
+        //converters.emplace_back(doc);
+        ++g_job_count;
+    }
+
+    //g_cv_pool.notify_one();
+}
+
+static job_success_result_t process_pending_jobs(const std::string& out_dir, error_msgs_t& error_msgs)
 {
     std::string job_doc;
     while (!converters.empty())
     {
+        // Assignment operation
+        // job ... this object
+        // converters.front() ... other object
         auto job = converters.front();
         converters.pop_front();
         job_doc = job.get_doc();
@@ -328,6 +331,17 @@ job_success_result_t process_pending_jobs(const std::string& out_dir, error_msgs
         }
     }
     return job_doc;
+}
+
+static void print_usage()
+{
+    cout << "BillFormatter usage:\n";
+    cout << "  BillFormatter.exe <Options> <Arguments>\n";
+    cout << "  Options:\n";
+    cout << "    -h: Print help\n";
+    cout << "  Arguments:\n";
+    cout << "    One or more documents to be converted to PDF\n";
+    cout << endl;
 }
 
 static unsigned int worker_main(zmq::context_t& context, int backend_port, const std::string& out_dir)
@@ -466,6 +480,7 @@ int main(int argc, char* argv[])
                 std::cerr << "Argument -out is malformed: " << sin.str() << std::endl;
                 std::cerr << "out_dir: " << out_dir << std::endl;
             }
+            g_out_dir = out_dir;
         }
         else if (arg.find("-workers=") != std::string::npos)
         {
@@ -530,65 +545,85 @@ int main(int argc, char* argv[])
         //}
 
         auto endpoint = std::string("tcp://*:") + std::to_string(backend_port);
-        broker.bind(endpoint.data());
+        try
+        {
+            broker.bind(endpoint.data());
+        }
+        catch (const std::exception& err)
+        {
+            std::cerr << "Server failed to bind to TCP port " << backend_port << ": " << err.what() << std::endl;
+            return 1;
+        }
+
+        CmdServer cmd_receiver(context);
 
         for (auto i = 0u; i < max_threads; ++i)
         {
             g_workers.emplace_back(argv[0], backend_port, out_dir, doc_matrix[i]);
         }
 
-        for (auto& doc : inputDocs)
+        // Process all initial conversion jobs and start listening to client's requests
+        for (;;)
         {
-            //std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
-
-            //  Next message gives us least recently used worker
-            std::string identity;
-            std::string delimiter;
-            std::string workload;
-            std::vector<zmq::message_t> recv_msgs;
-            const auto ret = zmq::recv_multipart(broker, std::back_inserter(recv_msgs));
-
-            //std::cout << "Broker got " << *ret << " messages" << std::endl;
-            identity = recv_msgs.begin()->to_string();
-            //delimiter = recv_msgs[1].to_string();
-            workload = std::next(std::begin(recv_msgs))->to_string();
-            //std::cout << "Identity: " << identity << " Delimiter: " << delimiter << " Workload: " << workload << std::endl;
-
-            if (check_ready_result(ret, recv_msgs))
+            if (inputDocs.empty())
             {
-                ++g_done_count;
+                // Keep the main-thread from consuming a whole CPU
+                std::this_thread::sleep_for(1s);
             }
+            for (auto& doc : inputDocs)
+            {
+                //std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
 
-            if (MSG_WORKER_READY == workload)
-            {
-            }
-            else
-            {
-                std::cerr << "Broker got unexpected message from worker " << identity << ": " << workload << std::endl;
-            }
+                //  Next message gives us least recently used worker
+                std::string identity;
+                std::string delimiter;
+                std::string workload;
+                std::vector<zmq::message_t> recv_msgs;
+                const auto ret = zmq::recv_multipart(broker, std::back_inserter(recv_msgs));
 
-            // Deploy more work
-            std::ostringstream sout;
-            sout << MSG_JOB_REQ << ' ' << doc;
-            workload = sout.str();
-            std::array<zmq::const_buffer, 3> req_msgs =
-            {
-                zmq::buffer(identity),
-                zmq::str_buffer(""),     // envelop delimiter
-                zmq::buffer(workload)  // workload
-            };
-            try
-            {
-                std::cout << "Sending multi-part JOB_REQ {" << identity << ", " << sout.str() << "}" << std::endl;
-                if (!zmq::send_multipart(broker, req_msgs))
+                //std::cout << "Broker got " << *ret << " messages" << std::endl;
+                identity = recv_msgs.begin()->to_string();
+                //delimiter = recv_msgs[1].to_string();
+                workload = std::next(std::begin(recv_msgs))->to_string();
+                //std::cout << "Identity: " << identity << " Delimiter: " << delimiter << " Workload: " << workload << std::endl;
+
+                if (check_ready_result(ret, recv_msgs))
                 {
-                    std::cerr << "Failed to send JOB_REQ." << std::endl;
+                    ++g_done_count;
+                }
+
+                if (MSG_WORKER_READY == workload)
+                {
+                }
+                else
+                {
+                    std::cerr << "Broker got unexpected message from worker " << identity << ": " << workload << std::endl;
+                }
+
+                // Deploy more work
+                std::ostringstream sout;
+                sout << MSG_JOB_REQ << ' ' << doc;
+                workload = sout.str();
+                std::array<zmq::const_buffer, 3> req_msgs =
+                {
+                    zmq::buffer(identity),
+                    zmq::str_buffer(""),     // envelop delimiter
+                    zmq::buffer(workload)  // workload
+                };
+                try
+                {
+                    std::cout << "Sending multi-part JOB_REQ {" << identity << ", " << sout.str() << "}" << std::endl;
+                    if (!zmq::send_multipart(broker, req_msgs))
+                    {
+                        std::cerr << "Failed to send JOB_REQ." << std::endl;
+                    }
+                }
+                catch (const zmq::error_t& err)
+                {
+                    std::cerr << "Failed to send JOB_REQ." << err.what() << std::endl;
                 }
             }
-            catch (const zmq::error_t& err)
-            {
-                std::cerr << "Failed to send JOB_REQ." << err.what() << std::endl;
-            }
+            inputDocs.clear();
         }
 
         //std::this_thread::sleep_for(5s);

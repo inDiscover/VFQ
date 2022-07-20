@@ -55,7 +55,7 @@ html_converter::html_converter(html_converter&& other) noexcept
     : input_document(std::exchange(other.input_document, ""))
     , global_settings(std::exchange(other.global_settings, nullptr))
     , converter(std::exchange(other.converter, nullptr))
-, settings(std::exchange(other.settings, nullptr))
+    , settings(std::exchange(other.settings, nullptr))
 {
 }
 
