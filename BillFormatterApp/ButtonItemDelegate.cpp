@@ -31,6 +31,11 @@ void ButtonItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
 
 bool ButtonItemDelegate::editorEvent(QEvent* event, QAbstractItemModel* model, const QStyleOptionViewItem& option, const QModelIndex& index)
 {
+    if (0 < index.column())
+    {
+        return QItemDelegate::editorEvent(event, model, option, index);
+    }
+
     if (event->type() == QEvent::MouseButtonRelease)
     {
         QMouseEvent* e = (QMouseEvent*)event;
