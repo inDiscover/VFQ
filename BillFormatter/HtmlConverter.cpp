@@ -35,17 +35,15 @@ namespace
     }
 }
 
-html_converter::html_converter()
-{
-}
-
 html_converter::html_converter(const html_converter& other)
     : input_document(other.input_document)
+    , bill_cycle(other.bill_cycle)
     , global_settings(other.global_settings)
     , converter(other.converter)
     , settings(other.settings)
 {
     const_cast<html_converter&>(other).input_document = "";
+    const_cast<html_converter&>(other).bill_cycle = 0;
     const_cast<html_converter&>(other).global_settings = nullptr;
     const_cast<html_converter&>(other).converter = nullptr;
     const_cast<html_converter&>(other).settings = nullptr;
@@ -53,15 +51,17 @@ html_converter::html_converter(const html_converter& other)
 
 html_converter::html_converter(html_converter&& other) noexcept
     : input_document(std::exchange(other.input_document, ""))
+    , bill_cycle(std::exchange(other.bill_cycle, 0))
     , global_settings(std::exchange(other.global_settings, nullptr))
     , converter(std::exchange(other.converter, nullptr))
     , settings(std::exchange(other.settings, nullptr))
 {
 }
 
-html_converter::html_converter(const std::string& in)
+html_converter::html_converter(const std::string& in, size_t bc)
 {
     input_document = in;
+    bill_cycle = bc;
 }
 
 html_converter::~html_converter()
@@ -91,6 +91,7 @@ html_converter& html_converter::operator=(const html_converter& other)
 html_converter& html_converter::operator=(html_converter&& other) noexcept
 {
     std::swap(input_document, other.input_document);
+    std::swap(bill_cycle, other.bill_cycle);
     std::swap(converter, other.converter);
     std::swap(global_settings, other.global_settings);
     std::swap(settings, other.settings);
@@ -137,7 +138,12 @@ bool html_converter::convert()
 std::string html_converter::get_doc() const
 {
     return input_document;
-} 
+}
+
+size_t html_converter::get_bill_cycle() const
+{
+    return bill_cycle;
+}
 
 int html_converter::get_html_error_code(error_msgs_t& out_msgs) const
 {
@@ -147,7 +153,7 @@ int html_converter::get_html_error_code(error_msgs_t& out_msgs) const
         return wkhtmltopdf_http_error_code(converter);
     }
     return 0;
-} 
+}
 
 size_t html_converter::get_output_buffer(const unsigned char** ppbuffer) const
 {

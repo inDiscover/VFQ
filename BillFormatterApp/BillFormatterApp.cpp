@@ -1,6 +1,7 @@
 #include "BillFormatterApp.h"
 #include "ButtonItemDelegate.h"
 #include "Commands.h"
+#include <algorithm>
 #include <array>
 
 BillFormatterApp::BillFormatterApp(QWidget *parent)
@@ -10,8 +11,8 @@ BillFormatterApp::BillFormatterApp(QWidget *parent)
 
     //connect(ui.bc1Button, SIGNAL(clicked()), this, SLOT(fetchRecordsBc1()));
     //connect(ui.bc1Button, &QPushButton::clicked, this, &BillFormatterApp::fetchRecordsBc1);
-    connect(ui.bc1Button, &QPushButton::clicked, this, [this] { fetchRecords(billCycleSelect_t::bc1); });
-    connect(ui.bc2Button, &QPushButton::clicked, this, [this] { fetchRecords(billCycleSelect_t::bc2); });
+    connect(ui.bc1Button, &QPushButton::clicked, this, [this] { fetchRecords(billCycleSelect::bc1); });
+    connect(ui.bc2Button, &QPushButton::clicked, this, [this] { fetchRecords(billCycleSelect::bc2); });
 
     //Here we are setting your columns
 
@@ -24,7 +25,8 @@ BillFormatterApp::BillFormatterApp(QWidget *parent)
     req_sender = CmdClient(context);
     clearRecords();
 
-    create_paging();
+    fetchRecords(billCycleSelect::bc1);
+    ui.bc1Button->setChecked(true);
 }
 
 BillFormatterApp* BillFormatterApp::instance()
@@ -68,13 +70,11 @@ void BillFormatterApp::clearRecords()
 
 bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
 {
-    // TODO Introduce handling of two separate bill cycles
-    switch (bc)
-    {
-        case billCycleSelect_t::bc1:
-        case billCycleSelect_t::bc2:
-            fetchRecords(0, paging_page_length);
-    }
+    active_bill_cycle = bc;
+    create_paging();
+
+    fetchRecords(0, paging_page_length);
+
     return true;
 }
 
@@ -83,7 +83,7 @@ bool BillFormatterApp::fetchRecords(size_t offset, size_t count)
     clearRecords();
 
     message_data_t data;
-    ReqRecords rec_req(nullptr, offset, count);
+    ReqRecords rec_req(active_bill_cycle, offset, count);
     req_sender.request_receive(rec_req, data);
 
     for (auto i{ 0 }; i < data.size(); ++i)
@@ -111,7 +111,7 @@ bool BillFormatterApp::fetchRecords(size_t offset, size_t count)
 size_t BillFormatterApp::get_records_count()
 {
     message_data_t data;
-    ReqCount req{};
+    ReqCount req(active_bill_cycle);
     req_sender.request_receive(req, data);
 
     if (!data.empty())
@@ -134,6 +134,9 @@ void BillFormatterApp::create_paging()
     auto recCntText = QString::number(record_count) + QLatin1String(" records");
     ui.recCntButton->setText(recCntText);
 
+    std::for_each(paging_buttons.begin(), paging_buttons.end(), [](auto const* btn) { delete btn; });
+    paging_buttons.clear();
+
     auto page_number = 0u;
     for (auto rec_number=0u; rec_number<record_count && page_number<paging_page_count; rec_number+=paging_page_length)
     {
@@ -145,7 +148,7 @@ void BillFormatterApp::create_paging()
         paging_buttons.append(page_button);
         ui.pagingPanel->addWidget(page_button);
     }
-    ui.pagingPanel->addStretch();
+    //ui.pagingPanel->addStretch();
 }
 
 //bool BillFormatterApp::fetchRecordsBc1()

@@ -24,9 +24,9 @@ public:
         bool receive_reply();
 
 public:
-        size_t get_records_count() override;
-        void get_times(size_t offset, size_t count, message_data_t& ret) override;
-        void get_records(size_t offset, size_t count, message_data_t& ret) override;
+        size_t get_records_count(billCycleSelect_t bc) override;
+        void get_times(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret) override;
+        void get_records(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret) override;
 
 private:
         template<class ItBegin, class ItEnd>
@@ -60,6 +60,7 @@ inline req_return_t CmdServer::deserialize(ItBegin it, const ItEnd end)
                         }
                         ReqRecords req{};
                         req.provider = this;
+                        req.bill_cycle = parse_ulong((++it)->to_string());
                         req.offset = parse_ulong((++it)->to_string());
                         req.count = parse_ulong((++it)->to_string());
                         return req;
@@ -68,6 +69,7 @@ inline req_return_t CmdServer::deserialize(ItBegin it, const ItEnd end)
                 {
                         ReqCount req{};
                         req.provider = this;
+                        req.bill_cycle = parse_ulong((++it)->to_string());
                         return req;
                 }
         }

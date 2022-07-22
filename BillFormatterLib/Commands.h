@@ -6,12 +6,18 @@
 class CmdServer;
 using message_data_t = std::vector<std::string>;
 
+using billCycleSelect_t = size_t;
+struct billCycleSelect
+{
+    enum { bc1, bc2 };
+};
+
 class IRecordProvider
 {
 public:
-        virtual size_t get_records_count() = 0;
-        virtual void get_times(size_t offset, size_t count, message_data_t& ret) = 0;
-        virtual void get_records(size_t offset, size_t count, message_data_t& ret) = 0;
+        virtual size_t get_records_count(billCycleSelect_t bc) = 0;
+        virtual void get_times(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret) = 0;
+        virtual void get_records(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret) = 0;
 };
 
 class IReq
@@ -27,8 +33,9 @@ class ReqRecords : public IReq
         friend class CmdServer;
 
 public:
-        ReqRecords() : provider(nullptr), offset(0), count(0) {}
-        ReqRecords(IRecordProvider* srv, size_t off, size_t cnt) : provider(srv), offset(off), count(cnt) {}
+        ReqRecords() : provider(nullptr), bill_cycle(billCycleSelect::bc1), offset(0), count(0) {}
+        ReqRecords(billCycleSelect_t bc, size_t off, size_t cnt)
+           : bill_cycle(bc), offset(off), count(cnt) {}
         inline static const char* CMD = "ReqRec";
         const char* cmd() override { return CMD; };
         void create_cmd(message_data_t& ret) override;
@@ -36,6 +43,7 @@ public:
 
 private:
         IRecordProvider* provider = nullptr;
+        billCycleSelect_t bill_cycle = billCycleSelect::bc1;
         size_t offset = 0;
         size_t count = 0;
 };
@@ -45,8 +53,8 @@ class ReqCount : public IReq
         friend class CmdServer;
 
 public:
-        ReqCount() : provider(nullptr) {}
-        ReqCount(IRecordProvider* srv) : provider(srv) {}
+        ReqCount() : provider(nullptr), bill_cycle(billCycleSelect::bc1) {}
+        ReqCount(billCycleSelect_t bc) : bill_cycle(bc) {}
         inline static const char* CMD = "ReqCnt";
         const char* cmd() override { return CMD; };
         void create_cmd(message_data_t& ret) override;
@@ -54,4 +62,5 @@ public:
 
 private:
         IRecordProvider* provider = nullptr;
+        billCycleSelect_t bill_cycle = billCycleSelect::bc1;
 };

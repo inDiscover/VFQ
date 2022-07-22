@@ -27,7 +27,7 @@
 #include <cstdlib>
 
 #if _OPENMP
-#	include <omp.h>
+#   <omp.h>
 #endif
 
 #include "wkhtmltox/pdf.h"
@@ -52,7 +52,7 @@ size_t g_done_count = 0u;
 size_t g_job_count = 0u;
 size_t g_shutdown_count = 0u;
 size_t max_threads = 1;
-static std::string g_out_dir;
+static std::array<std::string, 2> g_out_dirs;
 
 static const std::string MSG_JOB_REQ = "JOB_REQ";
 static const std::string MSG_WORKER_READY = "WORKER_READY";
@@ -260,18 +260,18 @@ static out_file_name_t get_out_file_name(const std::string& in_path)
     return out_file_name.empty() ? std::nullopt : out_file_name_t(out_file_name);
 }
 
-std::string const& get_out_dir()
+std::array<std::string, 2> const& get_out_dirs()
 {
-    return g_out_dir;
+    return g_out_dirs;
 }
 
-void add_job(const std::string& doc)
+void add_job(size_t bc, const std::string& doc)
 {
     //std::cout << "Add job for " << doc << std::endl;
 
     {
         //std::unique_lock<std::mutex> lock(g_queue_mtx);
-        converters.push_back(html_converter(doc));
+        converters.push_back(html_converter(doc, bc));
         // Equivalent code:
         //converters.emplace_back(doc);
         ++g_job_count;
@@ -280,9 +280,10 @@ void add_job(const std::string& doc)
     //g_cv_pool.notify_one();
 }
 
-static job_success_result_t process_pending_jobs(const std::string& out_dir, error_msgs_t& error_msgs)
+static job_success_result_t process_pending_jobs(const std::array<std::string, 2>& out_dirs, error_msgs_t& error_msgs)
 {
     std::string job_doc;
+    size_t bill_cycle = 0;
     while (!converters.empty())
     {
         // Assignment operation
@@ -291,6 +292,7 @@ static job_success_result_t process_pending_jobs(const std::string& out_dir, err
         auto job = converters.front();
         converters.pop_front();
         job_doc = job.get_doc();
+        bill_cycle = job.get_bill_cycle();
 
         //std::cout << "Processing job for " << job.get_doc() << std::endl;
         if (!job.convert())
@@ -317,7 +319,7 @@ static job_success_result_t process_pending_jobs(const std::string& out_dir, err
                 if (out_file_name)
                 {
                     using namespace std;
-                    auto out_path = out_dir + "/" + *out_file_name + ".pdf";
+                    auto out_path = out_dirs[bill_cycle] + "/" + *out_file_name + ".pdf";
                     std::ofstream fout(out_path, ios::out|ios::trunc|ios::binary);
                     fout.write(reinterpret_cast<const char*>(doc_buffer), doc_size);
                     if (!fout)
@@ -338,13 +340,22 @@ static void print_usage()
     cout << "BillFormatter usage:\n";
     cout << "  BillFormatter.exe <Options> <Arguments>\n";
     cout << "  Options:\n";
-    cout << "    -h: Print help\n";
+    cout << "    -h:      Print help\n";
+    cout << "    -worker: Assign this process to the backend worker pool\n";
+    cout << "    -backend=<port>:\n";
+    cout << "        Port used for backend worker pool\n";
+    cout << "    -out1=<path>:\n";
+    cout << "        Directory that should contain the converted bills of the first cycle\n";
+    cout << "    -out2=<path>:\n";
+    cout << "        Directory that should contain the converted bills of the seconde cycle\n";
+    cout << "    -workers=<int>:\n";
+    cout << "        Size of the backend worker pool\n";
     cout << "  Arguments:\n";
-    cout << "    One or more documents to be converted to PDF\n";
+    cout << "    One or more documents or directories to be converted to PDF\n";
     cout << endl;
 }
 
-static unsigned int worker_main(zmq::context_t& context, int backend_port, const std::string& out_dir)
+static unsigned int worker_main(zmq::context_t& context, int backend_port, const std::array<std::string, 2>& out_dirs)
 {
     zmq::socket_t worker(context, zmq::socket_type::dealer);
     std::ostringstream sout;
@@ -359,7 +370,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port, const
     error_msgs_t conversion_errors;
 
     // Process preloaded jobs first
-    auto job_succeeded = process_pending_jobs(out_dir, conversion_errors);
+    auto job_succeeded = process_pending_jobs(out_dirs, conversion_errors);
 
     for (;;)
     {
@@ -392,11 +403,12 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port, const
         }
         else if (workload.find(MSG_JOB_REQ) != std::string::npos)
         {
+            size_t bill_cycle = 0;
             std::istringstream sin(workload);
-            sin >> workload >> workload;
+            sin >> workload >> bill_cycle >> workload;
             if (sin)
             {
-                add_job(workload);
+                add_job(bill_cycle, workload);
             }
             else
             {
@@ -423,7 +435,7 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port, const
             continue;
         }
 
-        job_succeeded = process_pending_jobs(out_dir, conversion_errors);
+        job_succeeded = process_pending_jobs(out_dirs, conversion_errors);
     }
 
     worker.set(zmq::sockopt::linger, 0);
@@ -433,7 +445,6 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port, const
 int main(int argc, char* argv[])
 {
     vector<string> inputDocs;
-    std::string out_dir = "out";
     std::optional<int> override_workers_count;
 
     wkhtmltopdf_init(1);
@@ -450,6 +461,7 @@ int main(int argc, char* argv[])
         if (arg == "-h")
         {
             print_usage();
+            return 0;
         }
         else if (arg == "-worker")
         {
@@ -469,8 +481,9 @@ int main(int argc, char* argv[])
                 std::cerr << "port: " << backend_port << std::endl;
             }
         }
-        else if (arg.find("-out=") != std::string::npos)
+        else if (arg.find("-out1=") != std::string::npos)
         {
+            std::string out_dir;
             std::istringstream sin {arg};
             char c;
             while (sin >> c && c != '=') {}
@@ -480,7 +493,21 @@ int main(int argc, char* argv[])
                 std::cerr << "Argument -out is malformed: " << sin.str() << std::endl;
                 std::cerr << "out_dir: " << out_dir << std::endl;
             }
-            g_out_dir = out_dir;
+            g_out_dirs[billCycleSelect::bc1] = out_dir;
+        }
+        else if (arg.find("-out2=") != std::string::npos)
+        {
+            std::string out_dir;
+            std::istringstream sin {arg};
+            char c;
+            while (sin >> c && c != '=') {}
+            sin >> out_dir;
+            if (!sin)
+            {
+                std::cerr << "Argument -out is malformed: " << sin.str() << std::endl;
+                std::cerr << "out_dir: " << out_dir << std::endl;
+            }
+            g_out_dirs[billCycleSelect::bc2] = out_dir;
         }
         else if (arg.find("-workers=") != std::string::npos)
         {
@@ -521,7 +548,7 @@ int main(int argc, char* argv[])
 
         if (g_is_worker)
         {
-            add_job(doc);
+            add_job(0, doc);
         }
     }
     cout << "Backend port: " << backend_port << endl;
@@ -529,7 +556,7 @@ int main(int argc, char* argv[])
 
     if (g_is_worker)
     {
-        worker_main(context, backend_port, out_dir);
+        worker_main(context, backend_port, g_out_dirs);
     }
     else
     {
@@ -559,7 +586,7 @@ int main(int argc, char* argv[])
 
         for (auto i = 0u; i < max_threads; ++i)
         {
-            g_workers.emplace_back(argv[0], backend_port, out_dir, doc_matrix[i]);
+            g_workers.emplace_back(argv[0], backend_port, g_out_dirs, doc_matrix[i]);
         }
 
         // Process all initial conversion jobs and start listening to client's requests
@@ -602,7 +629,7 @@ int main(int argc, char* argv[])
 
                 // Deploy more work
                 std::ostringstream sout;
-                sout << MSG_JOB_REQ << ' ' << doc;
+                sout << MSG_JOB_REQ << ' ' << 0 << ' ' << doc;
                 workload = sout.str();
                 std::array<zmq::const_buffer, 3> req_msgs =
                 {

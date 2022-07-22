@@ -14,7 +14,7 @@ public:
     worker();
     worker(const worker& other);
     worker(worker&& other) noexcept;
-    worker(const std::string& prog_name, int backend_port, const std::string& out_dir, const std::vector<std::string>& docs);
+    worker(const std::string& prog_name, int backend_port, const std::array<std::string, 2>& out_dirs, const std::vector<std::string>& docs);
     virtual ~worker();
     worker& operator=(const worker& other);
     worker& operator=(worker&& other) noexcept;

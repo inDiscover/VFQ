@@ -8,7 +8,7 @@
 #include <filesystem>
 
 
-std::string const& get_out_dir();
+std::array<std::string, 2> const& get_out_dirs();
 
 
 static int thread_main(CmdServer& server)
@@ -84,10 +84,10 @@ bool CmdServer::receive_reply()
     return true;
 }
 
-size_t CmdServer::get_records_count()
+size_t CmdServer::get_records_count(billCycleSelect_t bc)
 {
     auto file_number = 0u;
-    auto const out_dir = get_out_dir();
+    auto const out_dir = get_out_dirs()[bc];
     for (auto const& entry : std::filesystem::directory_iterator(out_dir))
     {
         if (entry.is_regular_file() && entry.path().extension() == ".pdf")
@@ -98,10 +98,10 @@ size_t CmdServer::get_records_count()
     return file_number;
 }
 
-void CmdServer::get_times(size_t offset, size_t count, message_data_t& ret)
+void CmdServer::get_times(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret)
 {
     auto file_number = 0u;
-    auto const out_dir = get_out_dir();
+    auto const out_dir = get_out_dirs()[bc];
     for (auto const& entry : std::filesystem::directory_iterator(out_dir))
     {
         if (entry.is_regular_file() && entry.path().extension() == ".pdf")
@@ -132,10 +132,10 @@ void CmdServer::get_times(size_t offset, size_t count, message_data_t& ret)
     }
 }
 
-void CmdServer::get_records(size_t offset, size_t count, message_data_t& ret)
+void CmdServer::get_records(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret)
 {
     auto file_number = 0u;
-    auto const out_dir = get_out_dir();
+    auto const out_dir = get_out_dirs()[bc];
     for (auto const& entry : std::filesystem::directory_iterator(out_dir))
     {
         if (entry.is_regular_file() && entry.path().extension() == ".pdf")

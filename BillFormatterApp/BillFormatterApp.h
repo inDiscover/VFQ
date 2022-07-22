@@ -12,11 +12,6 @@
 
 using record_t = QList<QStandardItem*>;
 
-enum class billCycleSelect_t
-{
-    bc1, bc2
-};
-
 class BillFormatterApp : public QMainWindow
 {
     Q_OBJECT
@@ -51,6 +46,8 @@ private:
 
     zmq::context_t context;
     CmdClient req_sender;
+
+    billCycleSelect_t active_bill_cycle = billCycleSelect::bc1;
 
     size_t record_count = 0;
     QList<QCommandLinkButton*> paging_buttons;
