@@ -26,6 +26,7 @@ public:
 public:
     void addRecord(const record_t& record);
     void clearRecords();
+    bool convertRecord(size_t row);
 
 public slots:
     //bool fetchRecordsBc1();

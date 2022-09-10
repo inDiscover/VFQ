@@ -53,6 +53,9 @@ size_t g_job_count = 0u;
 size_t g_shutdown_count = 0u;
 size_t max_threads = 1;
 static std::array<std::string, 2> g_out_dirs;
+static std::array<std::string, 2> g_in_dirs;
+std::string worker_prog_name;
+zmq::context_t* g_context = nullptr;
 
 static const std::string MSG_JOB_REQ = "JOB_REQ";
 static const std::string MSG_WORKER_READY = "WORKER_READY";
@@ -265,13 +268,23 @@ std::array<std::string, 2> const& get_out_dirs()
     return g_out_dirs;
 }
 
+std::array<std::string, 2> const& get_in_dirs()
+{
+    return g_in_dirs;
+}
+
 void add_job(size_t bc, const std::string& doc)
 {
     //std::cout << "Add job for " << doc << std::endl;
 
     {
+        std::string in_doc(doc, 0, doc.rfind('.'));
+        //in_doc = get_in_dirs()[bc] + '\\' + in_doc;
+        std::filesystem::path in_path(get_in_dirs()[bc]);
+        in_path /= in_doc;
+
         //std::unique_lock<std::mutex> lock(g_queue_mtx);
-        converters.push_back(html_converter(doc, bc));
+        converters.push_back(html_converter(in_path.generic_string(), bc));
         // Equivalent code:
         //converters.emplace_back(doc);
         ++g_job_count;
@@ -335,6 +348,52 @@ static job_success_result_t process_pending_jobs(const std::array<std::string, 2
     return job_doc;
 }
 
+bool process_document(size_t bc, const std::string& doc, error_msgs_t& conversion_errors)
+{
+    //add_job(bc, doc);
+    //auto job_succeeded = process_pending_jobs(get_out_dirs(), conversion_errors);
+    //return !!job_succeeded;
+
+    auto backend_port = 8899;
+    zmq::socket_t broker(context, zmq::socket_type::router);
+    auto endpoint = std::string("tcp://*:") + std::to_string(backend_port);
+    try
+    {
+        broker.bind(endpoint.data());
+    }
+    catch (const std::exception& err)
+    {
+        std::cerr << "Server failed to bind to TCP port " << backend_port << ": " << err.what() << std::endl;
+        return 1;
+    }
+
+    std::vector<std::string> docs{ doc };
+    worker single_worker(worker_prog_name, backend_port, g_out_dirs, docs);
+
+    //  Next message tells us that the job is done
+    std::string identity;
+    std::string workload;
+    std::vector<zmq::message_t> recv_msgs;
+    const auto ret = zmq::recv_multipart(broker, std::back_inserter(recv_msgs));
+
+    //std::cout << "Broker got " << *ret << " messages" << std::endl;
+    identity = recv_msgs.begin()->to_string();
+    workload = std::next(std::begin(recv_msgs))->to_string();
+
+    if (check_ready_result(ret, recv_msgs))
+    {
+        ++g_done_count;
+    }
+
+    if (MSG_WORKER_READY == workload)
+    {
+    }
+    else
+    {
+        std::cerr << "Broker got unexpected message from worker " << identity << ": " << workload << std::endl;
+    }
+}
+
 static void print_usage()
 {
     cout << "BillFormatter usage:\n";
@@ -374,12 +433,6 @@ static unsigned int worker_main(zmq::context_t& context, int backend_port, const
 
     for (;;)
     {
-        // Unlock this worker
-        //std::unique_lock<std::mutex> lock(g_queue_mtx);
-        //g_cv_pool.wait(lock, [] {
-        //    return !converters.empty() || g_terminate_pool;
-        //});
-
         //std::cout << "Worker " << worker_id << " signals WORKER_READY" << std::endl;
         signal_worker_ready(worker, worker_id, job_succeeded.value_or(""), conversion_errors);
         conversion_errors.clear();
@@ -452,6 +505,7 @@ int main(int argc, char* argv[])
 
     zmq::context_t context(1);
     auto backend_port = 8877;
+    worker_prog_name = argv[0];
 
     // Parsing the command line arguments and options
     for (int i = 1; i < argc; i++)
@@ -508,6 +562,34 @@ int main(int argc, char* argv[])
                 std::cerr << "out_dir: " << out_dir << std::endl;
             }
             g_out_dirs[billCycleSelect::bc2] = out_dir;
+        }
+        else if (arg.find("-in1=") != std::string::npos)
+        {
+            std::string in_dir;
+            std::istringstream sin {arg};
+            char c;
+            while (sin >> c && c != '=') {}
+            sin >> in_dir;
+            if (!sin)
+            {
+                std::cerr << "Argument -in is malformed: " << sin.str() << std::endl;
+                std::cerr << "in_dir: " << in_dir << std::endl;
+            }
+            g_in_dirs[billCycleSelect::bc1] = in_dir;
+        }
+        else if (arg.find("-in2=") != std::string::npos)
+        {
+            std::string in_dir;
+            std::istringstream sin {arg};
+            char c;
+            while (sin >> c && c != '=') {}
+            sin >> in_dir;
+            if (!sin)
+            {
+                std::cerr << "Argument -out is malformed: " << sin.str() << std::endl;
+                std::cerr << "in_dir: " << in_dir << std::endl;
+            }
+            g_in_dirs[billCycleSelect::bc2] = in_dir;
         }
         else if (arg.find("-workers=") != std::string::npos)
         {
@@ -586,7 +668,7 @@ int main(int argc, char* argv[])
 
         for (auto i = 0u; i < max_threads; ++i)
         {
-            g_workers.emplace_back(argv[0], backend_port, g_out_dirs, doc_matrix[i]);
+            g_workers.emplace_back(worker_prog_name, backend_port, g_out_dirs, doc_matrix[i]);
         }
 
         // Process all initial conversion jobs and start listening to client's requests
@@ -597,6 +679,7 @@ int main(int argc, char* argv[])
                 // Keep the main-thread from consuming a whole CPU
                 std::this_thread::sleep_for(1s);
             }
+
             for (auto& doc : inputDocs)
             {
                 //std::cout << "Deploy job for " << std::quoted(doc) << std::endl;
@@ -629,7 +712,7 @@ int main(int argc, char* argv[])
 
                 // Deploy more work
                 std::ostringstream sout;
-                sout << MSG_JOB_REQ << ' ' << 0 << ' ' << doc;
+                sout << MSG_JOB_REQ << ' ' << 0 << ' ' << doc; // REQ token, bill cycle, document path
                 workload = sout.str();
                 std::array<zmq::const_buffer, 3> req_msgs =
                 {

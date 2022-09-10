@@ -2,6 +2,7 @@
 #include <qdialog.h>
 #include <qapplication.h>
 #include "ButtonItemDelegate.h"
+#include "BillFormatterApp.h"
 
 ButtonItemDelegate::ButtonItemDelegate(QObject* parent)
     : QItemDelegate(parent)
@@ -50,13 +51,21 @@ bool ButtonItemDelegate::editorEvent(QEvent* event, QAbstractItemModel* model, c
         h = 30;//button height
 
         if (clickX > x && clickX < x + w)
+        {
             if (clickY > y && clickY < y + h)
             {
-                QDialog* d = new QDialog();
-                d->setGeometry(0, 120, 100, 100);
-                d->show();
+                //QDialog* d = new QDialog();
+                //d->setGeometry(0, 120, 100, 100);
+                //d->show();
+                convert_document(index);
             }
+        }
     }
 
     return true;
+}
+
+void ButtonItemDelegate::convert_document(const QModelIndex& index)
+{
+    BillFormatterApp::instance()->convertRecord(index.row());
 }

@@ -10,7 +10,7 @@
 #include <stdexcept>
 
 
-using req_t = std::variant<ReqRecords, ReqCount>;
+using req_t = std::variant<ReqRecords, ReqCount, ReqConvertOne>;
 using req_return_t = std::optional<req_t>;
 
 
@@ -27,10 +27,14 @@ public:
         size_t get_records_count(billCycleSelect_t bc) override;
         void get_times(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret) override;
         void get_records(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret) override;
+        bool convert_document(billCycleSelect_t bc, size_t index, message_data_t& ret) override;
 
 private:
         template<class ItBegin, class ItEnd>
                 req_return_t deserialize(ItBegin it, const ItEnd end);
+
+private:
+        std::vector<std::string> document_table;
 };
 
 
@@ -70,6 +74,14 @@ inline req_return_t CmdServer::deserialize(ItBegin it, const ItEnd end)
                         ReqCount req{};
                         req.provider = this;
                         req.bill_cycle = parse_ulong((++it)->to_string());
+                        return req;
+                }
+                else if (cmd == ReqConvertOne::CMD)
+                {
+                        ReqConvertOne req{};
+                        req.provider = this;
+                        req.bill_cycle = parse_ulong((++it)->to_string());
+                        req.index = parse_ulong((++it)->to_string());
                         return req;
                 }
         }

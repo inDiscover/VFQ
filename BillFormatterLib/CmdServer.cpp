@@ -1,14 +1,22 @@
 #include "pch.h"
 #include "CmdServer.h"
+#include <algorithm>
 #include <iterator>
 #include <sstream>
 #include <iomanip>
 #include <ctime>
 #include <thread>
 #include <filesystem>
+#include <vector>
+#include <string>
 
 
+using error_msgs_t = std::vector<std::string>;
+
+
+// Forward declarations
 std::array<std::string, 2> const& get_out_dirs();
+bool process_document(size_t bc, const std::string& doc, error_msgs_t& conversion_errors);
 
 
 static int thread_main(CmdServer& server)
@@ -134,6 +142,11 @@ void CmdServer::get_times(billCycleSelect_t bc, size_t offset, size_t count, mes
 
 void CmdServer::get_records(billCycleSelect_t bc, size_t offset, size_t count, message_data_t& ret)
 {
+    if (document_table.size() < offset + count)
+    {
+        document_table.resize(offset + count);
+    }
+
     auto file_number = 0u;
     auto const out_dir = get_out_dirs()[bc];
     for (auto const& entry : std::filesystem::directory_iterator(out_dir))
@@ -170,8 +183,23 @@ void CmdServer::get_records(billCycleSelect_t bc, size_t offset, size_t count, m
                 // Bill
                 sout << ' ' << entry.path().filename();
                 ret.emplace_back(std::move(sout.str()));
+
+                document_table[file_number] = entry.path().filename().generic_string();
             }
+
             ++file_number;
         }
     }
+}
+
+bool CmdServer::convert_document(billCycleSelect_t bc, size_t index, message_data_t& ret)
+{
+    if (0 <= index && index < document_table.size())
+    {
+        error_msgs_t errors;
+        auto success = process_document(bc, document_table[index], errors);
+        std::for_each(errors.begin(), errors.end(), [&ret](auto const& err) { ret.emplace_back(err); });
+        return success;
+    }
+    return false;
 }

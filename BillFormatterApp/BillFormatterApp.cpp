@@ -81,6 +81,7 @@ bool BillFormatterApp::fetchRecords(billCycleSelect_t bc)
 bool BillFormatterApp::fetchRecords(size_t offset, size_t count)
 {
     clearRecords();
+    paging_index_begin = offset;
 
     message_data_t data;
     ReqRecords rec_req(active_bill_cycle, offset, count);
@@ -106,6 +107,18 @@ bool BillFormatterApp::fetchRecords(size_t offset, size_t count)
     }
 
     return true;
+}
+
+bool BillFormatterApp::convertRecord(size_t row)
+{
+    // Trigger the conversion of only the selected record/document
+    message_data_t data;
+    auto const index = active_bill_cycle * paging_page_length + row;
+    ReqConvertOne conv_req(active_bill_cycle, index);
+    req_sender.request_receive(conv_req, data);
+
+    // Refresh the display
+    return fetchRecords(paging_index_begin, paging_page_length);
 }
 
 size_t BillFormatterApp::get_records_count()
@@ -136,6 +149,7 @@ void BillFormatterApp::create_paging()
 
     std::for_each(paging_buttons.begin(), paging_buttons.end(), [](auto const* btn) { delete btn; });
     paging_buttons.clear();
+    paging_index_begin = 0;
 
     auto page_number = 0u;
     for (auto rec_number=0u; rec_number<record_count && page_number<paging_page_count; rec_number+=paging_page_length)
