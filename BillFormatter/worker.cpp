@@ -84,9 +84,9 @@ worker::worker(worker&& other) noexcept
 {
 }
 
-worker::worker(const std::string& prog_name, int backend_port, const std::array<std::string, 2>& out_dirs, const std::vector<std::string>& docs)
+worker::worker(const std::string& prog_name, int backend_port, const std::array<std::string, 2>& out_dirs, size_t bc, const std::vector<std::string>& docs)
 {
-    auto cmd_line = prog_name + " -worker " + " -backend=" + std::to_string(backend_port) +
+    auto cmd_line = prog_name + " -worker " + " -backend=" + std::to_string(backend_port) + " -billcycle=" + std::to_string(bc) +
         " -out1=" + out_dirs[0] + " " + " -out2=" + out_dirs[1] + " ";
     std::for_each(docs.begin(), docs.end(), [&cmd_line](auto& el) { cmd_line += el + " "; });
     proc_info = new PROCESS_INFORMATION;

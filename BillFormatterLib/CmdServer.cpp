@@ -184,7 +184,11 @@ void CmdServer::get_records(billCycleSelect_t bc, size_t offset, size_t count, m
                 sout << ' ' << entry.path().filename();
                 ret.emplace_back(std::move(sout.str()));
 
-                document_table[file_number] = entry.path().filename().generic_string();
+                auto doc_path = entry.path().filename().generic_string();
+                auto ext_pos = doc_path.rfind('.');
+                auto ext_count = doc_path.size() - ext_pos;
+                doc_path.replace( ext_pos, ext_count, "");
+                document_table[file_number] = doc_path;
             }
 
             ++file_number;

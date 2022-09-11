@@ -350,12 +350,18 @@ static job_success_result_t process_pending_jobs(const std::array<std::string, 2
 
 bool process_document(size_t bc, const std::string& doc, error_msgs_t& conversion_errors)
 {
+    if (!g_context)
+    {
+        std::cerr << "Cannot process document '" << doc << "'. ZMQ context is unset." << std::endl;
+        return false;
+    }
+
     //add_job(bc, doc);
     //auto job_succeeded = process_pending_jobs(get_out_dirs(), conversion_errors);
     //return !!job_succeeded;
 
     auto backend_port = 8899;
-    zmq::socket_t broker(context, zmq::socket_type::router);
+    zmq::socket_t broker(*g_context, zmq::socket_type::router);
     auto endpoint = std::string("tcp://*:") + std::to_string(backend_port);
     try
     {
@@ -364,11 +370,11 @@ bool process_document(size_t bc, const std::string& doc, error_msgs_t& conversio
     catch (const std::exception& err)
     {
         std::cerr << "Server failed to bind to TCP port " << backend_port << ": " << err.what() << std::endl;
-        return 1;
+        return false;
     }
 
     std::vector<std::string> docs{ doc };
-    worker single_worker(worker_prog_name, backend_port, g_out_dirs, docs);
+    worker single_worker(worker_prog_name, backend_port, g_out_dirs, bc, docs);
 
     //  Next message tells us that the job is done
     std::string identity;
@@ -391,7 +397,10 @@ bool process_document(size_t bc, const std::string& doc, error_msgs_t& conversio
     else
     {
         std::cerr << "Broker got unexpected message from worker " << identity << ": " << workload << std::endl;
+        return false;
     }
+
+    return true;
 }
 
 static void print_usage()
@@ -403,6 +412,8 @@ static void print_usage()
     cout << "    -worker: Assign this process to the backend worker pool\n";
     cout << "    -backend=<port>:\n";
     cout << "        Port used for backend worker pool\n";
+    cout << "    -billcycle=0|1:\n";
+    cout << "        Bill cycle to operate in\n";
     cout << "    -out1=<path>:\n";
     cout << "        Directory that should contain the converted bills of the first cycle\n";
     cout << "    -out2=<path>:\n";
@@ -414,7 +425,7 @@ static void print_usage()
     cout << endl;
 }
 
-static unsigned int worker_main(zmq::context_t& context, int backend_port, const std::array<std::string, 2>& out_dirs)
+static unsigned int worker_main(zmq::context_t& context, int backend_port, size_t bc, const std::array<std::string, 2>& out_dirs)
 {
     zmq::socket_t worker(context, zmq::socket_type::dealer);
     std::ostringstream sout;
@@ -504,7 +515,9 @@ int main(int argc, char* argv[])
     cout << "WKHtmlToX version " << wkhtmltopdf_version() << endl;
 
     zmq::context_t context(1);
+    g_context = &context;
     auto backend_port = 8877;
+    auto bc = 0u;
     worker_prog_name = argv[0];
 
     // Parsing the command line arguments and options
@@ -533,6 +546,18 @@ int main(int argc, char* argv[])
             {
                 std::cerr << "Argument -backend is malformed: " << sin.str() << std::endl;
                 std::cerr << "port: " << backend_port << std::endl;
+            }
+        }
+        else if (arg.find("-billcycle=") != std::string::npos)
+        {
+            std::istringstream sin {arg};
+            char c;
+            while (sin >> c && c != '=') {}
+            sin >> bc;
+            if (!sin)
+            {
+                std::cerr << "Argument -billcycle is malformed: " << sin.str() << std::endl;
+                std::cerr << "bc: " << bc << std::endl;
             }
         }
         else if (arg.find("-out1=") != std::string::npos)
@@ -630,7 +655,7 @@ int main(int argc, char* argv[])
 
         if (g_is_worker)
         {
-            add_job(0, doc);
+            add_job(bc, doc);
         }
     }
     cout << "Backend port: " << backend_port << endl;
@@ -638,7 +663,7 @@ int main(int argc, char* argv[])
 
     if (g_is_worker)
     {
-        worker_main(context, backend_port, g_out_dirs);
+        worker_main(context, backend_port, bc, g_out_dirs);
     }
     else
     {
@@ -647,6 +672,8 @@ int main(int argc, char* argv[])
         zmq::socket_t broker(context, zmq::socket_type::router);
         std::vector<std::vector<std::string>> doc_matrix(max_threads);
 
+        // Disabled manual load distribution.
+        // ZMQ's dealer/router provide an inherent load balancing.
         //for (auto i = 0u; i < inputDocs.size(); ++i)
         //{
         //    auto worker_idx = i % max_threads;
@@ -668,7 +695,7 @@ int main(int argc, char* argv[])
 
         for (auto i = 0u; i < max_threads; ++i)
         {
-            g_workers.emplace_back(worker_prog_name, backend_port, g_out_dirs, doc_matrix[i]);
+            g_workers.emplace_back(worker_prog_name, backend_port, g_out_dirs, bc, doc_matrix[i]);
         }
 
         // Process all initial conversion jobs and start listening to client's requests
@@ -752,6 +779,7 @@ int main(int argc, char* argv[])
     //}
 
     wkhtmltopdf_deinit();
+    g_context = nullptr;
 
     return 0;
 }
